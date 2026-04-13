@@ -248,50 +248,105 @@ st.markdown(
             margin-top: 4px;
         }
 
-        .system-live-badge {
-            display: inline-flex;
+        .loading-stage {
+            min-height: 72vh;
+            display: flex;
             align-items: center;
-            gap: 10px;
-            background: linear-gradient(135deg, #052e16 0%, #166534 100%);
-            color: white;
-            padding: 10px 14px;
-            border-radius: 999px;
-            font-size: 12px;
-            font-weight: 800;
-            letter-spacing: 0.04em;
-            box-shadow: 0 10px 30px rgba(22, 101, 52, 0.22);
+            justify-content: center;
         }
 
-        .system-live-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 999px;
-            background: #86efac;
-            box-shadow: 0 0 0 rgba(134, 239, 172, 0.8);
-            animation: livePulse 1.6s infinite;
+        .loading-card {
+            width: 100%;
+            max-width: 520px;
+            background: rgba(255, 255, 255, 0.88);
+            backdrop-filter: blur(10px);
+            border: 1px solid #dbeafe;
+            border-radius: 28px;
+            padding: 40px 26px;
+            text-align: center;
+            box-shadow: 0 22px 50px rgba(15, 23, 42, 0.08);
         }
 
-        .system-run-card {
+        .loading-illustration {
+            position: relative;
+            width: 150px;
+            height: 150px;
+            margin: 0 auto 18px auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .loading-gear {
+            font-size: 110px;
+            line-height: 1;
+            color: #38bdf8;
+            filter: drop-shadow(0 10px 20px rgba(56, 189, 248, 0.18));
+            animation: spinGear 2.1s linear infinite;
+        }
+
+        .loading-core {
+            position: absolute;
+            width: 60px;
+            height: 60px;
+            border-radius: 999px;
+            background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+            border: 6px solid #ffffff;
+            box-shadow: 0 6px 20px rgba(245, 158, 11, 0.28);
+        }
+
+        .loading-lines {
+            position: absolute;
+            width: 92px;
+            height: 92px;
+            border-radius: 999px;
+            animation: spinGearReverse 2.1s linear infinite;
+        }
+
+        .loading-lines::before,
+        .loading-lines::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 52px;
+            height: 4px;
+            background: #1f2937;
+            border-radius: 999px;
+            transform-origin: center;
+        }
+
+        .loading-lines::before {
+            transform: translate(-50%, -50%) rotate(45deg);
+        }
+
+        .loading-lines::after {
+            transform: translate(-50%, -50%) rotate(-45deg);
+        }
+
+        .loading-title {
+            font-size: 22px;
+            font-weight: 900;
+            letter-spacing: 0.06em;
+            color: #0f172a;
+            margin-top: 10px;
+        }
+
+        .loading-subtitle {
             margin-top: 8px;
-            border-radius: 18px;
-            padding: 12px 16px;
-            background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
-            border: 1px solid #bfdbfe;
-            color: #1e3a8a;
-            font-size: 13px;
-            font-weight: 700;
+            font-size: 14px;
+            color: #64748b;
+            line-height: 1.7;
         }
 
-        @keyframes livePulse {
-            0% {
-                box-shadow: 0 0 0 0 rgba(134, 239, 172, 0.9);
-            }
-            70% {
-                box-shadow: 0 0 0 10px rgba(134, 239, 172, 0);
-            }
-            100% {
-                box-shadow: 0 0 0 0 rgba(134, 239, 172, 0);
-            }
+        @keyframes spinGear {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes spinGearReverse {
+            from { transform: rotate(360deg); }
+            to { transform: rotate(0deg); }
         }
     </style>
     """,
@@ -351,6 +406,65 @@ def hash_password(password: str) -> str:
         100000,
     )
     return f"{salt}${pwdhash.hex()}"
+
+
+def get_status_palette(status: str):
+    palette = {
+        "Pick Up": ("#dcfce7", "#166534"),
+        "Not Pick Up": ("#fee2e2", "#991b1b"),
+        "No Answer": ("#ffedd5", "#9a3412"),
+        "Busy": ("#dbeafe", "#1d4ed8"),
+        "Wrong Number": ("#fce7f3", "#9d174d"),
+        "Rejected": ("#fee2e2", "#991b1b"),
+        "Completed": ("#e5e7eb", "#374151"),
+    }
+    return palette.get(status, ("#f1f5f9", "#334155"))
+
+
+def style_status_dataframe(df: pd.DataFrame, status_col: str = "Status"):
+    if df.empty or status_col not in df.columns:
+        return df
+
+    def _style_status(value):
+        bg, fg = get_status_palette(safe_text(value))
+        return (
+            f"background-color: {bg};"
+            f"color: {fg};"
+            f"font-weight: 700;"
+            f"text-align: center;"
+        )
+
+    styled = (
+        df.style
+        .applymap(_style_status, subset=[status_col])
+        .set_properties(**{
+            "border": "none",
+            "font-size": "13px",
+        })
+        .hide(axis="index")
+    )
+    return styled
+
+
+def show_loading_screen(message: str = "Loading your call platform..."):
+    placeholder = st.empty()
+    placeholder.markdown(
+        f"""
+        <div class="loading-stage">
+            <div class="loading-card">
+                <div class="loading-illustration">
+                    <div class="loading-gear">⚙</div>
+                    <div class="loading-core"></div>
+                    <div class="loading-lines"></div>
+                </div>
+                <div class="loading-title">LOADING</div>
+                <div class="loading-subtitle">{message}</div>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    return placeholder
 
 
 # =========================================================
@@ -857,16 +971,7 @@ def save_callback_result(row_data: pd.Series, callback_status: str, callback_rem
 # UI HELPERS
 # =========================================================
 def queue_status_chip(value: str) -> str:
-    palette = {
-        "Pick Up": ("#dcfce7", "#166534"),
-        "Not Pick Up": ("#fef3c7", "#92400e"),
-        "No Answer": ("#ffedd5", "#9a3412"),
-        "Busy": ("#dbeafe", "#1d4ed8"),
-        "Wrong Number": ("#fee2e2", "#991b1b"),
-        "Rejected": ("#fee2e2", "#991b1b"),
-        "Completed": ("#e5e7eb", "#374151"),
-    }
-    bg, fg = palette.get(value, ("#e5e7eb", "#374151"))
+    bg, fg = get_status_palette(value)
     return f"<span style='display:inline-block;padding:4px 10px;border-radius:999px;background:{bg};color:{fg};font-size:12px;font-weight:700;'>{value}</span>"
 
 
@@ -960,17 +1065,18 @@ def login_page() -> None:
                 login_submitted = st.form_submit_button("Enter Interface", use_container_width=True, type="primary")
 
                 if login_submitted:
-                    if authenticate_user(staff_id, password):
-                        profile = load_staff_profile(staff_id)
-                        st.session_state.logged_in = True
-                        st.session_state.staff_id = profile["staff_id"]
-                        st.session_state.caller_name = profile["caller_name"]
-                        st.session_state.user_role = profile["role"]
-                        st.session_state.branch_name = profile["branch_name"]
-                        st.session_state.branch_manager = profile["branch_manager"]
-                        st.session_state["_pending_form_reset"] = False
-                        reset_form()
-                        st.rerun()
+                    with st.spinner("Authenticating..."):
+                        if authenticate_user(staff_id, password):
+                            profile = load_staff_profile(staff_id)
+                            st.session_state.logged_in = True
+                            st.session_state.staff_id = profile["staff_id"]
+                            st.session_state.caller_name = profile["caller_name"]
+                            st.session_state.user_role = profile["role"]
+                            st.session_state.branch_name = profile["branch_name"]
+                            st.session_state.branch_manager = profile["branch_manager"]
+                            st.session_state["_pending_form_reset"] = False
+                            reset_form()
+                            st.rerun()
 
         with register_tab:
             with st.form("register_form"):
@@ -980,8 +1086,9 @@ def login_page() -> None:
                 register_submitted = st.form_submit_button("Create Account", use_container_width=True)
 
                 if register_submitted:
-                    if register_user(new_staff_id, new_password, confirm_password):
-                        st.success("Account created successfully. Please login.")
+                    with st.spinner("Creating account..."):
+                        if register_user(new_staff_id, new_password, confirm_password):
+                            st.success("Account created successfully. Please login.")
 
 
 def render_header(df_user: pd.DataFrame) -> None:
@@ -992,7 +1099,7 @@ def render_header(df_user: pd.DataFrame) -> None:
     latest_calls = get_latest_calls_by_phone(df_user)
     pending_queue = len(latest_calls[latest_calls["call_status"].isin(CALLBACK_STATUSES)]) if not latest_calls.empty else 0
 
-    left, right = st.columns([0.62, 0.38])
+    left, right = st.columns([0.68, 0.32])
 
     with left:
         st.markdown(
@@ -1012,22 +1119,6 @@ def render_header(df_user: pd.DataFrame) -> None:
         )
 
     with right:
-        st.markdown(
-            """
-            <div style='display:flex;justify-content:flex-end;align-items:center;gap:12px;'>
-                <div class='system-live-badge'>
-                    <span class='system-live-dot'></span>
-                    SYSTEM RUNNING
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            "<div class='system-run-card'>Live validation, fast cache, and ready for call logging.</div>",
-            unsafe_allow_html=True,
-        )
-
         c1, c2 = st.columns(2)
         with c1:
             if st.button("Refresh", use_container_width=True):
@@ -1145,7 +1236,7 @@ def page_new_call(df_user: pd.DataFrame, df_all: pd.DataFrame) -> None:
                 "remark": "Remark",
             }
         )
-        st.dataframe(recent_view, use_container_width=True, hide_index=True)
+        st.dataframe(style_status_dataframe(recent_view), use_container_width=True)
 
 
 def page_callback_queue(df_user: pd.DataFrame) -> None:
@@ -1256,14 +1347,17 @@ def page_history(df_user: pd.DataFrame) -> None:
                 "remark": "Remark",
             }
         )
-        st.dataframe(view, use_container_width=True, hide_index=True, height=520)
+        st.dataframe(style_status_dataframe(view), use_container_width=True, height=520)
 
 
 def main_app() -> None:
-    with st.spinner("Loading call platform..."):
-        raw_df = get_call_log_data()
-        df_all = normalize_call_log_df(raw_df)
-        df_user = df_all[df_all["staff_id"] == safe_text(st.session_state.staff_id)].copy() if not df_all.empty else df_all.copy()
+    loading_placeholder = show_loading_screen("Preparing call records and loading the latest activity...")
+
+    raw_df = get_call_log_data()
+    df_all = normalize_call_log_df(raw_df)
+    df_user = df_all[df_all["staff_id"] == safe_text(st.session_state.staff_id)].copy() if not df_all.empty else df_all.copy()
+
+    loading_placeholder.empty()
 
     render_header(df_user)
 
