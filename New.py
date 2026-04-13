@@ -86,16 +86,21 @@ st.markdown(
         [data-testid="stHeader"],
         [data-testid="stToolbar"],
         [data-testid="stDecoration"],
+        [data-testid="stStatusWidget"],
+        [data-testid="stAppViewBlockContainer"] > div:first-child > div:first-child > div:first-child:empty,
         #MainMenu,
         footer,
         header {
             visibility: hidden !important;
             display: none !important;
             height: 0 !important;
+            min-height: 0 !important;
+            padding: 0 !important;
+            margin: 0 !important;
         }
 
         .block-container {
-            padding-top: 0.8rem !important;
+            padding-top: 0rem !important;
             padding-bottom: 1.6rem !important;
             max-width: 1380px;
         }
@@ -771,8 +776,6 @@ def render_logo() -> None:
 def login_page() -> None:
     left, right = st.columns([1.15, 0.85], gap="large")
     with left:
-        st.markdown("<div class='info-pill'>Modern sales call interface</div>", unsafe_allow_html=True)
-        st.write("")
         render_logo()
         st.markdown(
             f"""
