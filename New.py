@@ -5,7 +5,6 @@ from datetime import date, datetime, timedelta
 
 import gspread
 import pandas as pd
-import plotly.express as px
 import streamlit as st
 from google.oauth2.service_account import Credentials
 
@@ -79,30 +78,44 @@ MOTIVATION_QUOTE = "Every call is a new chance to create trust, solve a need, an
 st.markdown(
     """
     <style>
-        .stApp {
-            background: linear-gradient(135deg, #f8fffb 0%, #f2f8f4 45%, #f8fafc 100%);
-        }
-
+        /* ── Kill every Streamlit chrome element ── */
+        #root > div:first-child,
+        .stApp > header,
         [data-testid="stHeader"],
         [data-testid="stToolbar"],
         [data-testid="stDecoration"],
         [data-testid="stStatusWidget"],
-        [data-testid="stAppViewBlockContainer"] > div:first-child > div:first-child > div:first-child:empty,
+        [data-testid="stAppViewBlockContainer"] > section > div.block-container > div:first-child > div:first-child > div:empty,
         #MainMenu,
         footer,
         header {
-            visibility: hidden !important;
             display: none !important;
-            height: 0 !important;
-            min-height: 0 !important;
-            padding: 0 !important;
-            margin: 0 !important;
+            visibility: hidden !important;
+            height: 0px !important;
+            max-height: 0px !important;
+            min-height: 0px !important;
+            overflow: hidden !important;
+            padding: 0px !important;
+            margin: 0px !important;
+        }
+
+        .stApp {
+            background: linear-gradient(135deg, #f8fffb 0%, #f2f8f4 45%, #f8fafc 100%);
+            margin-top: 0 !important;
         }
 
         .block-container {
-            padding-top: 0rem !important;
+            padding-top: 1rem !important;
             padding-bottom: 1.6rem !important;
             max-width: 1380px;
+        }
+
+        /* Hide empty pill divs Streamlit injects at top */
+        .stApp > div > div > div > div:first-child:empty,
+        .stApp > div > div > div:first-child:empty {
+            display: none !important;
+            height: 0 !important;
+            min-height: 0 !important;
         }
 
         .hero-shell {
@@ -148,19 +161,6 @@ st.markdown(
             border: 1px solid #e5e7eb;
             border-radius: 24px;
             padding: 20px;
-        }
-
-        .info-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 14px;
-            border-radius: 999px;
-            background: white;
-            border: 1px solid #dcfce7;
-            color: #166534;
-            font-size: 13px;
-            font-weight: 700;
         }
 
         .mini-stat-row {
@@ -265,6 +265,36 @@ st.markdown(
             border-radius: 18px;
         }
     </style>
+
+    <script>
+        (function() {
+            function removeEmptyTopDivs() {
+                // Target the stApp element and hide any empty immediate children
+                var app = document.querySelector('.stApp');
+                if (!app) return;
+                var children = Array.from(app.children);
+                children.forEach(function(child) {
+                    if (child.innerHTML.trim() === '' || child.offsetHeight < 10) {
+                        child.style.cssText = 'display:none!important;height:0!important;';
+                    }
+                });
+                // Also target the top-level wrapper div Streamlit injects
+                var wrapper = document.querySelector('[data-testid="stAppViewContainer"]');
+                if (wrapper) {
+                    var wrapperChildren = Array.from(wrapper.children);
+                    wrapperChildren.forEach(function(child) {
+                        if (child.innerHTML.trim() === '' && child.offsetHeight < 80) {
+                            child.style.cssText = 'display:none!important;height:0!important;';
+                        }
+                    });
+                }
+            }
+            document.addEventListener('DOMContentLoaded', removeEmptyTopDivs);
+            setTimeout(removeEmptyTopDivs, 200);
+            setTimeout(removeEmptyTopDivs, 600);
+            setTimeout(removeEmptyTopDivs, 1200);
+        })();
+    </script>
     """,
     unsafe_allow_html=True,
 )
@@ -321,7 +351,6 @@ def ensure_form_state() -> None:
         "form_callback_date": date.today() + timedelta(days=1),
         "form_remark": "",
         "queue_filter": "All Pending",
-        "dashboard_scope": "My Calls",
         "history_search": "",
         "history_status": "All",
         "history_purpose": "All",
@@ -387,7 +416,11 @@ def ensure_followup_sheet():
     try:
         worksheet = workbook.worksheet(FOLLOWUP_SHEET_NAME)
     except gspread.WorksheetNotFound:
-        worksheet = workbook.add_worksheet(title=FOLLOWUP_SHEET_NAME, rows=1000, cols=max(30, len(FOLLOWUP_REQUIRED_HEADERS)))
+        worksheet = workbook.add_worksheet(
+            title=FOLLOWUP_SHEET_NAME,
+            rows=1000,
+            cols=max(30, len(FOLLOWUP_REQUIRED_HEADERS)),
+        )
         worksheet.append_row(FOLLOWUP_REQUIRED_HEADERS)
         return worksheet
 
@@ -537,21 +570,10 @@ def normalize_followup_df(df: pd.DataFrame) -> pd.DataFrame:
         df[col] = df[col].apply(safe_text)
 
     for col in [
-        "staff_id",
-        "customer_name",
-        "customer_phone",
-        "call_status",
-        "call_purpose",
-        "remark",
-        "next_action",
-        "queue_status",
-        "last_updated",
-        "call_datetime",
-        "callback_date",
-        "notes",
-        "call_notes",
-        "followup_date",
-        "caller_name",
+        "staff_id", "customer_name", "customer_phone", "call_status",
+        "call_purpose", "remark", "next_action", "queue_status",
+        "last_updated", "call_datetime", "callback_date", "notes",
+        "call_notes", "followup_date", "caller_name",
     ]:
         if col not in df.columns:
             df[col] = ""
@@ -563,7 +585,6 @@ def normalize_followup_df(df: pd.DataFrame) -> pd.DataFrame:
     df["remark"] = df["remark"].where(df["remark"] != "", df["notes"])
     df["remark"] = df["remark"].where(df["remark"] != "", df["call_notes"])
     df["call_purpose"] = df["call_purpose"].where(df["call_purpose"] != "", df.get("source", ""))
-
     df["call_datetime"] = df["call_datetime"].where(df["call_datetime"] != "", df["last_updated"])
     df["call_datetime"] = pd.to_datetime(df["call_datetime"], errors="coerce")
     df["callback_date"] = df["callback_date"].where(df["callback_date"] != "", df["followup_date"])
@@ -590,26 +611,6 @@ def normalize_followup_df(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def filter_data_by_role(df: pd.DataFrame) -> pd.DataFrame:
-    if df.empty:
-        return df
-    current_id = safe_text(st.session_state.staff_id)
-    current_role = safe_text(st.session_state.user_role).lower()
-    staff_master = load_staff_master_df()
-
-    is_admin = current_id == "90020759" or "admin" in current_role
-    if is_admin:
-        return df
-
-    if current_role in ["branch manager", "bm", "branch head"] and not staff_master.empty:
-        managed_staff = staff_master[
-            (staff_master["branch_manager"] == current_id) | (staff_master["staff_id"] == current_id)
-        ]["staff_id"].astype(str).str.strip().unique().tolist()
-        return df[df["staff_id"].isin(managed_staff)].copy()
-
-    return df[df["staff_id"] == current_id].copy()
-
-
 def queue_status_chip(value: str) -> str:
     palette = {
         "Pick Up": ("#dcfce7", "#166534"),
@@ -630,13 +631,11 @@ def save_new_call_to_sheet() -> bool:
     worksheet = ensure_followup_sheet()
     if worksheet is None:
         return False
-
     phone_clean = clean_phone_number(st.session_state.form_phone)
     purpose = st.session_state.form_other_purpose.strip() if st.session_state.form_purpose == "Other" else st.session_state.form_purpose
     status = st.session_state.form_status
     callback_date = st.session_state.form_callback_date.strftime("%Y-%m-%d") if status in CALLBACK_STATUSES else ""
     now_string = now_ts().strftime("%Y-%m-%d %H:%M:%S")
-
     record = {
         "call_id": safe_text(pd.Timestamp.now().strftime("%y%m%d%H%M%S%f"))[-10:],
         "call_datetime": now_string,
@@ -692,7 +691,6 @@ def save_callback_result(row_data: pd.Series, callback_status: str, callback_dat
         return False
     now_string = now_ts().strftime("%Y-%m-%d %H:%M:%S")
     next_callback = callback_date.strftime("%Y-%m-%d") if callback_status in CALLBACK_STATUSES else ""
-
     record = {
         "call_id": safe_text(pd.Timestamp.now().strftime("%y%m%d%H%M%S%f"))[-10:],
         "call_datetime": now_string,
@@ -726,16 +724,10 @@ def save_callback_result(row_data: pd.Series, callback_status: str, callback_dat
     created = append_record_to_sheet(worksheet, record)
     if not created:
         return False
-
     row_number = int(row_data.get("_row_number"))
     return update_followup_row(
         row_number,
-        {
-            "queue_status": "Completed",
-            "status": "Completed",
-            "action_after_followup": "Completed",
-            "last_updated": now_string,
-        },
+        {"queue_status": "Completed", "status": "Completed", "action_after_followup": "Completed", "last_updated": now_string},
     )
 
 
@@ -744,12 +736,7 @@ def complete_queue_item(row_data: pd.Series) -> bool:
     now_string = now_ts().strftime("%Y-%m-%d %H:%M:%S")
     return update_followup_row(
         row_number,
-        {
-            "queue_status": "Completed",
-            "status": "Completed",
-            "action_after_followup": "Completed",
-            "last_updated": now_string,
-        },
+        {"queue_status": "Completed", "status": "Completed", "action_after_followup": "Completed", "last_updated": now_string},
     )
 
 
@@ -790,7 +777,10 @@ def login_page() -> None:
     with right:
         st.markdown("<div class='login-shell'>", unsafe_allow_html=True)
         st.markdown("<div style='font-size:28px;font-weight:900;color:#0f172a;'>Login</div>", unsafe_allow_html=True)
-        st.markdown("<div style='margin-top:6px;font-size:14px;color:#6b7280;'>Use your existing User ID and password from the Google Sheet.</div>", unsafe_allow_html=True)
+        st.markdown(
+            "<div style='margin-top:6px;font-size:14px;color:#6b7280;'>Use your existing User ID and password from the Google Sheet.</div>",
+            unsafe_allow_html=True,
+        )
         st.write("")
         with st.form("login_form"):
             staff_id = st.text_input("User ID")
@@ -822,7 +812,8 @@ def render_header(user_df: pd.DataFrame) -> None:
             f"""
             <div style='font-size:34px;font-weight:900;letter-spacing:-0.03em;color:#0f172a;'>Call Activity Tracking System</div>
             <div style='margin-top:8px;font-size:14px;color:#6b7280;'>
-                Logged in as <b>{safe_text(st.session_state.caller_name)}</b> ({safe_text(st.session_state.staff_id)}). Personal queue and history are filtered by the logged-in salesperson.
+                Logged in as <b>{safe_text(st.session_state.caller_name)}</b> ({safe_text(st.session_state.staff_id)}).
+                Personal queue and history are filtered by the logged-in salesperson.
             </div>
             <div class='mini-stat-row'>
                 <div class='mini-stat'>Today Calls: {today_calls}</div>
@@ -851,7 +842,10 @@ def page_new_call(df_user: pd.DataFrame) -> None:
     top1, top2 = st.columns([0.75, 0.25])
     with top1:
         st.markdown("<div style='font-size:28px;font-weight:900;color:#0f172a;'>New Call Log</div>", unsafe_allow_html=True)
-        st.markdown("<div style='margin-top:4px;font-size:14px;color:#6b7280;'>Only the simplified fields remain: phone, name, purpose, status, callback date, and remark.</div>", unsafe_allow_html=True)
+        st.markdown(
+            "<div style='margin-top:4px;font-size:14px;color:#6b7280;'>Fill in phone, name, purpose, status, callback date, and remark.</div>",
+            unsafe_allow_html=True,
+        )
     with top2:
         st.markdown(
             f"<div style='margin-top:6px;text-align:right;'><span style='display:inline-block;background:#166534;color:white;padding:8px 14px;border-radius:999px;font-size:13px;font-weight:700;'>{safe_text(st.session_state.caller_name)}</span></div>",
@@ -906,17 +900,10 @@ def page_new_call(df_user: pd.DataFrame) -> None:
     else:
         recent_view = recent[["call_datetime", "customer_phone", "customer_name", "call_purpose", "call_status", "queue_status", "remark"]].copy()
         recent_view["call_datetime"] = recent_view["call_datetime"].apply(fmt_datetime)
-        recent_view = recent_view.rename(
-            columns={
-                "call_datetime": "Date",
-                "customer_phone": "Phone",
-                "customer_name": "Name",
-                "call_purpose": "Purpose",
-                "call_status": "Status",
-                "queue_status": "Queue",
-                "remark": "Remark",
-            }
-        )
+        recent_view = recent_view.rename(columns={
+            "call_datetime": "Date", "customer_phone": "Phone", "customer_name": "Name",
+            "call_purpose": "Purpose", "call_status": "Status", "queue_status": "Queue", "remark": "Remark",
+        })
         st.dataframe(recent_view, use_container_width=True, hide_index=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -927,7 +914,7 @@ def page_unpicked_queue(df_user: pd.DataFrame) -> None:
     with top1:
         st.markdown("<div style='font-size:28px;font-weight:900;color:#0f172a;'>Unpicked Up Queue</div>", unsafe_allow_html=True)
         st.markdown(
-            f"<div style='margin-top:4px;font-size:14px;color:#6b7280;'>Only {safe_text(st.session_state.caller_name)} sees this queue after login, so the same salesperson can call the customer again later.</div>",
+            f"<div style='margin-top:4px;font-size:14px;color:#6b7280;'>Only {safe_text(st.session_state.caller_name)} sees this queue after login.</div>",
             unsafe_allow_html=True,
         )
     with top2:
@@ -942,7 +929,6 @@ def page_unpicked_queue(df_user: pd.DataFrame) -> None:
         queue_df = queue_df[queue_df["callback_date"].notna() & (queue_df["callback_date"].dt.date > date.today())]
 
     queue_df = queue_df.sort_values(["callback_date", "call_datetime"], ascending=[True, False], na_position="last")
-
     st.markdown(
         f"<div class='queue-note'>{len(queue_df)} customer(s) in {safe_text(st.session_state.caller_name)}'s queue.</div>",
         unsafe_allow_html=True,
@@ -1019,79 +1005,11 @@ def page_history(df_user: pd.DataFrame) -> None:
     else:
         view = history_df[["call_datetime", "customer_phone", "customer_name", "call_purpose", "call_status", "queue_status", "remark"]].copy()
         view["call_datetime"] = view["call_datetime"].apply(fmt_datetime)
-        view = view.rename(
-            columns={
-                "call_datetime": "Date",
-                "customer_phone": "Phone",
-                "customer_name": "Name",
-                "call_purpose": "Purpose",
-                "call_status": "Status",
-                "queue_status": "Queue",
-                "remark": "Remark",
-            }
-        )
+        view = view.rename(columns={
+            "call_datetime": "Date", "customer_phone": "Phone", "customer_name": "Name",
+            "call_purpose": "Purpose", "call_status": "Status", "queue_status": "Queue", "remark": "Remark",
+        })
         st.dataframe(view, use_container_width=True, hide_index=True, height=520)
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
-def page_dashboard(df_all: pd.DataFrame, df_user: pd.DataFrame) -> None:
-    st.markdown("<div class='soft-panel'>", unsafe_allow_html=True)
-    top1, top2 = st.columns([0.72, 0.28])
-    with top1:
-        st.markdown("<div style='font-size:28px;font-weight:900;color:#0f172a;'>Dashboard</div>", unsafe_allow_html=True)
-        st.markdown("<div style='margin-top:4px;font-size:14px;color:#6b7280;'>Monitor personal performance or switch to role-based overall view.</div>", unsafe_allow_html=True)
-    with top2:
-        st.selectbox("Dashboard Scope", ["My Calls", "Role View"], key="dashboard_scope")
-
-    role_df = filter_data_by_role(df_all)
-    scope_df = df_user.copy() if st.session_state.dashboard_scope == "My Calls" else role_df.copy()
-
-    if scope_df.empty:
-        st.info("No data available.")
-        st.markdown("</div>", unsafe_allow_html=True)
-        return
-
-    total_calls = len(scope_df)
-    picked_up = len(scope_df[scope_df["call_status"] == "Pick Up"])
-    pending_callbacks = len(scope_df[scope_df["queue_status"] == "Pending Callback"])
-    today_calls = len(scope_df[scope_df["call_datetime"].dt.date == date.today()])
-
-    st.markdown(
-        f"""
-        <div class='mini-stat-row'>
-            <div class='mini-stat'>Total Calls: {total_calls}</div>
-            <div class='mini-stat'>Pick Up: {picked_up}</div>
-            <div class='mini-stat'>Pending Callback: {pending_callbacks}</div>
-            <div class='mini-stat'>Today Calls: {today_calls}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    status_counts = scope_df["call_status"].replace("", "Unknown").fillna("Unknown").value_counts().reset_index()
-    status_counts.columns = ["Call Status", "Count"]
-    fig_status = px.bar(status_counts, x="Call Status", y="Count", text="Count", title="Call Status Breakdown")
-    fig_status.update_traces(textposition="outside")
-    fig_status.update_layout(showlegend=False, plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
-
-    purpose_counts = scope_df["call_purpose"].replace("", "Unknown").fillna("Unknown").value_counts().reset_index()
-    purpose_counts.columns = ["Call Purpose", "Count"]
-    fig_purpose = px.pie(purpose_counts, names="Call Purpose", values="Count", hole=0.45, title="Call Purpose Distribution")
-    fig_purpose.update_layout(paper_bgcolor="rgba(0,0,0,0)")
-
-    trend_df = scope_df[scope_df["call_datetime"].notna()].copy()
-    trend_df["call_day"] = trend_df["call_datetime"].dt.date
-    trend_df = trend_df.groupby("call_day", as_index=False).size().rename(columns={"size": "Count"})
-    fig_trend = px.line(trend_df, x="call_day", y="Count", markers=True, title="Daily Call Trend")
-    fig_trend.update_layout(plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)")
-
-    c1, c2 = st.columns(2, gap="large")
-    with c1:
-        st.plotly_chart(fig_status, use_container_width=True)
-    with c2:
-        st.plotly_chart(fig_purpose, use_container_width=True)
-
-    st.plotly_chart(fig_trend, use_container_width=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
 
@@ -1102,8 +1020,8 @@ def main_app() -> None:
 
     render_header(df_user)
 
-    new_tab, queue_tab, history_tab, dashboard_tab = st.tabs(
-        ["📞 New Call Log", "🗂️ Unpicked Up Queue", "🕘 Call History", "📊 Dashboard"]
+    new_tab, queue_tab, history_tab = st.tabs(
+        ["📞 New Call Log", "🗂️ Unpicked Up Queue", "🕘 Call History"]
     )
 
     with new_tab:
@@ -1112,8 +1030,6 @@ def main_app() -> None:
         page_unpicked_queue(df_user)
     with history_tab:
         page_history(df_user)
-    with dashboard_tab:
-        page_dashboard(df_all, df_user)
 
 
 init_state()
