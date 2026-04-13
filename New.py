@@ -3,7 +3,7 @@ import hashlib
 import os
 import re
 import secrets
-from datetime import date, datetime, timedelta
+from datetime import datetime
 from zoneinfo import ZoneInfo
 
 import gspread
@@ -176,7 +176,6 @@ st.markdown(
 
         .stTextInput > div > div > input,
         .stTextArea textarea,
-        .stDateInput input,
         .stSelectbox [data-baseweb="select"] > div {
             border-radius: 16px !important;
             min-height: 46px;
@@ -248,6 +247,52 @@ st.markdown(
             color: #64748b;
             margin-top: 4px;
         }
+
+        .system-live-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: linear-gradient(135deg, #052e16 0%, #166534 100%);
+            color: white;
+            padding: 10px 14px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            box-shadow: 0 10px 30px rgba(22, 101, 52, 0.22);
+        }
+
+        .system-live-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 999px;
+            background: #86efac;
+            box-shadow: 0 0 0 rgba(134, 239, 172, 0.8);
+            animation: livePulse 1.6s infinite;
+        }
+
+        .system-run-card {
+            margin-top: 8px;
+            border-radius: 18px;
+            padding: 12px 16px;
+            background: linear-gradient(135deg, #eff6ff 0%, #f8fafc 100%);
+            border: 1px solid #bfdbfe;
+            color: #1e3a8a;
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        @keyframes livePulse {
+            0% {
+                box-shadow: 0 0 0 0 rgba(134, 239, 172, 0.9);
+            }
+            70% {
+                box-shadow: 0 0 0 10px rgba(134, 239, 172, 0);
+            }
+            100% {
+                box-shadow: 0 0 0 0 rgba(134, 239, 172, 0);
+            }
+        }
     </style>
     """,
     unsafe_allow_html=True,
@@ -315,8 +360,7 @@ def ensure_form_state() -> None:
     defaults = {
         "form_phone": "",
         "form_name": "",
-        "form_purpose": "Welcome Call",
-        "form_other_purpose": "",
+        "form_purpose": PURPOSE_OPTIONS[0],
         "form_status": "Pick Up",
         "form_remark": "",
         "history_search": "",
@@ -332,8 +376,7 @@ def ensure_form_state() -> None:
 def reset_form() -> None:
     st.session_state.form_phone = ""
     st.session_state.form_name = ""
-    st.session_state.form_purpose = "Welcome Call"
-    st.session_state.form_other_purpose = ""
+    st.session_state.form_purpose = PURPOSE_OPTIONS[0]
     st.session_state.form_status = "Pick Up"
     st.session_state.form_remark = ""
 
@@ -378,19 +421,28 @@ def setup_gsheets():
         return None
 
 
-def get_sheet(sheet_name: str):
-    client = setup_gsheets()
+@st.cache_resource(show_spinner=False)
+def get_gsheet_client():
+    return setup_gsheets()
+
+
+@st.cache_data(ttl=20, show_spinner=False)
+def read_sheet_values(sheet_name: str):
+    client = get_gsheet_client()
     if not client:
-        return None
+        return []
+
     workbook = client.open_by_key(SHEET_ID)
-    try:
-        return workbook.worksheet(sheet_name)
-    except gspread.WorksheetNotFound:
-        return None
+    worksheet = workbook.worksheet(sheet_name)
+    return worksheet.get_all_values()
+
+
+def clear_data_cache() -> None:
+    st.cache_data.clear()
 
 
 def ensure_password_sheet():
-    client = setup_gsheets()
+    client = get_gsheet_client()
     if not client:
         return None
 
@@ -404,28 +456,26 @@ def ensure_password_sheet():
             cols=len(PASSWORD_HEADERS),
         )
         worksheet.append_row(PASSWORD_HEADERS)
+        clear_data_cache()
         return worksheet
 
     all_values = worksheet.get_all_values()
     if not all_values:
         worksheet.append_row(PASSWORD_HEADERS)
+        clear_data_cache()
         return worksheet
 
     current_headers = [safe_text(h) for h in all_values[0]]
-    merged_headers = current_headers[:]
-    for header in PASSWORD_HEADERS:
-        if header not in merged_headers:
-            merged_headers.append(header)
-
-    if merged_headers != current_headers:
-        worksheet.resize(rows=max(len(all_values), 1000), cols=len(merged_headers))
-        worksheet.update("A1", [merged_headers])
+    if current_headers != PASSWORD_HEADERS:
+        worksheet.resize(rows=max(len(all_values), 1000), cols=len(PASSWORD_HEADERS))
+        worksheet.update("A1", [PASSWORD_HEADERS])
+        clear_data_cache()
 
     return worksheet
 
 
 def ensure_call_log_sheet():
-    client = setup_gsheets()
+    client = get_gsheet_client()
     if not client:
         return None
 
@@ -439,15 +489,21 @@ def ensure_call_log_sheet():
             cols=len(CALL_LOG_HEADERS),
         )
         worksheet.append_row(CALL_LOG_HEADERS)
+        clear_data_cache()
         return worksheet
 
     all_values = worksheet.get_all_values()
     if not all_values:
         worksheet.append_row(CALL_LOG_HEADERS)
+        clear_data_cache()
         return worksheet
 
-    worksheet.resize(rows=max(len(all_values), 1000), cols=len(CALL_LOG_HEADERS))
-    worksheet.update("A1", [CALL_LOG_HEADERS])
+    current_headers = [safe_text(h) for h in all_values[0]]
+    if current_headers != CALL_LOG_HEADERS:
+        worksheet.resize(rows=max(len(all_values), 1000), cols=len(CALL_LOG_HEADERS))
+        worksheet.update("A1", [CALL_LOG_HEADERS])
+        clear_data_cache()
+
     return worksheet
 
 
@@ -456,6 +512,7 @@ def append_row_by_headers(worksheet, record: dict) -> bool:
         headers = worksheet.row_values(1)
         row = [record.get(header, "") for header in headers]
         worksheet.append_row(row, value_input_option="USER_ENTERED")
+        clear_data_cache()
         return True
     except Exception as e:
         st.error(f"Save error: {e}")
@@ -467,16 +524,22 @@ def append_row_by_headers(worksheet, record: dict) -> bool:
 # =========================================================
 def load_staff_master_df() -> pd.DataFrame:
     try:
-        worksheet = get_sheet(STAFF_SHEET_NAME)
-        if worksheet is None:
+        values = read_sheet_values(STAFF_SHEET_NAME)
+        if not values:
             return pd.DataFrame()
 
-        records = worksheet.get_all_records()
-        if not records:
+        headers = [safe_text(h).lower() for h in values[0]]
+        rows = values[1:]
+        if not rows:
             return pd.DataFrame()
 
-        df = pd.DataFrame(records)
-        df.columns = [safe_text(c).lower() for c in df.columns]
+        width = len(headers)
+        normalized_rows = []
+        for row in rows:
+            padded = list(row) + [""] * (width - len(row))
+            normalized_rows.append(padded[:width])
+
+        df = pd.DataFrame(normalized_rows, columns=headers)
 
         def find_col(candidates):
             for col in candidates:
@@ -535,14 +598,25 @@ def load_staff_profile(staff_id: str) -> dict:
 
 def user_exists(staff_id: str) -> bool:
     try:
-        worksheet = ensure_password_sheet()
-        if worksheet is None:
+        ensure_password_sheet()
+        values = read_sheet_values(PASSWORD_SHEET_NAME)
+        if not values:
             return False
 
-        records = worksheet.get_all_records()
+        headers = [safe_text(h) for h in values[0]]
+        rows = values[1:]
+        if not rows:
+            return False
+
+        try:
+            staff_idx = headers.index("staff_id")
+        except ValueError:
+            return False
+
         target = safe_text(staff_id)
-        for record in records:
-            if safe_text(record.get("staff_id")) == target:
+        for row in rows:
+            padded = list(row) + [""] * (len(headers) - len(row))
+            if safe_text(padded[staff_idx]) == target:
                 return True
         return False
     except Exception:
@@ -551,25 +625,43 @@ def user_exists(staff_id: str) -> bool:
 
 def authenticate_user(staff_id: str, password: str) -> bool:
     try:
-        worksheet = ensure_password_sheet()
-        if worksheet is None:
+        ensure_password_sheet()
+        values = read_sheet_values(PASSWORD_SHEET_NAME)
+        if not values:
             st.error("Password sheet not found")
             return False
 
-        records = worksheet.get_all_records()
+        headers = [safe_text(h) for h in values[0]]
+        rows = values[1:]
+        if not rows:
+            st.error("No users found")
+            return False
+
+        try:
+            staff_idx = headers.index("staff_id")
+            password_idx = headers.index("password")
+            status_idx = headers.index("status")
+        except ValueError:
+            st.error("Password sheet structure is incorrect")
+            return False
+
         target_staff = safe_text(staff_id)
         target_password = safe_text(password)
 
-        for record in records:
-            if safe_text(record.get("staff_id")) == target_staff:
-                status = safe_text(record.get("status")).lower() or "active"
-                stored_password = safe_text(record.get("password"))
+        for row in rows:
+            padded = list(row) + [""] * (len(headers) - len(row))
+            if safe_text(padded[staff_idx]) == target_staff:
+                status = safe_text(padded[status_idx]).lower() or "active"
+                stored_password = safe_text(padded[password_idx])
+
                 if status != "active":
                     st.error("Account is not active")
                     return False
+
                 if stored_password != target_password:
                     st.error("Invalid password")
                     return False
+
                 return True
 
         st.error("Staff ID not found")
@@ -623,11 +715,14 @@ def register_user(staff_id: str, password: str, confirm_password: str) -> bool:
 # CALL LOG DATA
 # =========================================================
 def get_call_log_data() -> pd.DataFrame:
-    worksheet = ensure_call_log_sheet()
-    if worksheet is None:
-        return pd.DataFrame()
+    try:
+        values = read_sheet_values(CALL_LOG_SHEET_NAME)
+    except Exception:
+        worksheet = ensure_call_log_sheet()
+        if worksheet is None:
+            return pd.DataFrame()
+        values = worksheet.get_all_values()
 
-    values = worksheet.get_all_values()
     if not values:
         return pd.DataFrame()
 
@@ -652,6 +747,7 @@ def normalize_call_log_df(df: pd.DataFrame) -> pd.DataFrame:
         for col in CALL_LOG_HEADERS:
             if col not in df.columns:
                 df[col] = ""
+        df["phone_key"] = ""
         return df
 
     df = df.copy()
@@ -686,17 +782,42 @@ def get_latest_calls_by_phone(df_user: pd.DataFrame) -> pd.DataFrame:
     return temp
 
 
-def save_new_call_to_sheet() -> bool:
+def phone_exists(phone_input: str, df_all: pd.DataFrame) -> bool:
+    phone_clean = clean_phone_number(phone_input)
+    if not phone_clean or len(phone_clean) < 8 or df_all.empty:
+        return False
+    return (df_all["phone_key"] == phone_clean).any()
+
+
+def get_phone_match_info(phone_input: str, df_all: pd.DataFrame):
+    phone_clean = clean_phone_number(phone_input)
+    if not phone_clean or len(phone_clean) < 8 or df_all.empty:
+        return None
+
+    match_df = df_all[df_all["phone_key"] == phone_clean].copy()
+    if match_df.empty:
+        return None
+
+    latest = match_df.sort_values("call_datetime", ascending=False, na_position="last").iloc[0]
+    return {
+        "phone": phone_clean,
+        "count": len(match_df),
+        "last_name": safe_text(latest.get("customer_name")) or "-",
+        "last_status": safe_text(latest.get("call_status")) or "-",
+        "last_time": fmt_datetime(latest.get("call_datetime")),
+        "last_staff": safe_text(latest.get("caller_name")) or safe_text(latest.get("staff_id")) or "-",
+    }
+
+
+def save_new_call_to_sheet(df_all: pd.DataFrame) -> bool:
     worksheet = ensure_call_log_sheet()
     if worksheet is None:
         return False
 
     phone_clean = clean_phone_number(st.session_state.form_phone)
-    purpose = (
-        st.session_state.form_other_purpose.strip()
-        if st.session_state.form_purpose == "Other"
-        else st.session_state.form_purpose
-    )
+    if phone_exists(phone_clean, df_all):
+        st.error("Duplicate phone number detected. Save cancelled.")
+        return False
 
     record = {
         "call_id": safe_text(pd.Timestamp.now().strftime("%y%m%d%H%M%S%f"))[-10:],
@@ -706,9 +827,10 @@ def save_new_call_to_sheet() -> bool:
         "staff_id": safe_text(st.session_state.staff_id),
         "caller_name": safe_text(st.session_state.caller_name),
         "call_status": st.session_state.form_status,
-        "call_purpose": purpose,
+        "call_purpose": st.session_state.form_purpose,
         "remark": st.session_state.form_remark.strip(),
     }
+
     return append_row_by_headers(worksheet, record)
 
 
@@ -767,56 +889,39 @@ def render_logo() -> None:
         )
 
 
-def render_phone_existence_notice(phone_input: str, df_all: pd.DataFrame) -> None:
-    phone_clean = clean_phone_number(phone_input)
-    if not phone_clean or len(phone_clean) < 8:
-        return
+def render_phone_existence_notice(phone_input: str, df_all: pd.DataFrame) -> bool:
+    info = get_phone_match_info(phone_input, df_all)
 
-    if df_all.empty:
+    if info is None:
+        phone_clean = clean_phone_number(phone_input)
+        if not phone_clean or len(phone_clean) < 8:
+            return False
+
         st.markdown(
             """
             <div class="phone-check-card phone-check-new">
                 <div class="phone-check-title">✨ New phone number</div>
-                <div class="phone-check-sub">No call record found yet for this number.</div>
+                <div class="phone-check-sub">No call record found yet for this number. You can continue.</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        return
-
-    match_df = df_all[df_all["phone_key"] == phone_clean].copy()
-    if match_df.empty:
-        st.markdown(
-            """
-            <div class="phone-check-card phone-check-new">
-                <div class="phone-check-title">✨ New phone number</div>
-                <div class="phone-check-sub">No call record found yet for this number.</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        return
-
-    latest = match_df.sort_values("call_datetime", ascending=False, na_position="last").iloc[0]
-    count_calls = len(match_df)
-
-    last_time = fmt_datetime(latest.get("call_datetime"))
-    last_name = safe_text(latest.get("customer_name")) or "-"
-    last_staff = safe_text(latest.get("caller_name")) or safe_text(latest.get("staff_id")) or "-"
-    last_status = safe_text(latest.get("call_status")) or "-"
+        return False
 
     st.markdown(
         f"""
         <div class="phone-check-card phone-check-exists">
-            <div class="phone-check-title">⚠️ Phone number already exists</div>
+            <div class="phone-check-title">⛔ Phone number already exists</div>
             <div class="phone-check-sub">
-                <b>{phone_clean}</b> already has <b>{count_calls}</b> call record(s).<br>
-                Latest: <b>{last_name}</b> • <b>{last_status}</b> • <b>{last_time}</b> • by <b>{last_staff}</b>
+                <b>{info['phone']}</b> already has <b>{info['count']}</b> call record(s).<br>
+                Latest: <b>{info['last_name']}</b> • <b>{info['last_status']}</b> • <b>{info['last_time']}</b> • by <b>{info['last_staff']}</b><br>
+                New save is blocked for duplicate phone numbers.
             </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
+    return True
 
 
 # =========================================================
@@ -887,7 +992,7 @@ def render_header(df_user: pd.DataFrame) -> None:
     latest_calls = get_latest_calls_by_phone(df_user)
     pending_queue = len(latest_calls[latest_calls["call_status"].isin(CALLBACK_STATUSES)]) if not latest_calls.empty else 0
 
-    left, right = st.columns([0.68, 0.32])
+    left, right = st.columns([0.62, 0.38])
 
     with left:
         st.markdown(
@@ -907,12 +1012,28 @@ def render_header(df_user: pd.DataFrame) -> None:
         )
 
     with right:
+        st.markdown(
+            """
+            <div style='display:flex;justify-content:flex-end;align-items:center;gap:12px;'>
+                <div class='system-live-badge'>
+                    <span class='system-live-dot'></span>
+                    SYSTEM RUNNING
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            "<div class='system-run-card'>Live validation, fast cache, and ready for call logging.</div>",
+            unsafe_allow_html=True,
+        )
+
         c1, c2 = st.columns(2)
         with c1:
             if st.button("Refresh", use_container_width=True):
                 st.rerun()
         with c2:
-            if st.button("Logout", use_container_width=True):
+            if st.button("Logout", use_container_width=True, type="primary"):
                 st.session_state.logged_in = False
                 st.session_state.staff_id = ""
                 st.session_state.caller_name = ""
@@ -924,11 +1045,27 @@ def render_header(df_user: pd.DataFrame) -> None:
 def page_new_call(df_user: pd.DataFrame, df_all: pd.DataFrame) -> None:
     apply_pending_form_reset()
 
-    top1, top2 = st.columns([0.75, 0.25])
+    top1, top2 = st.columns([0.62, 0.38])
+
+    with top1:
+        st.markdown(
+            "<div style='font-size:28px;font-weight:900;color:#0f172a;'>New Call Log</div>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            "<div style='margin-top:4px;font-size:14px;color:#6b7280;'>Duplicate phone numbers cannot be saved.</div>",
+            unsafe_allow_html=True,
+        )
 
     with top2:
         st.markdown(
-            f"<div style='margin-top:6px;text-align:right;'><span style='display:inline-block;background:#166534;color:white;padding:8px 14px;border-radius:999px;font-size:13px;font-weight:700;'>{safe_text(st.session_state.caller_name)}</span></div>",
+            f"""
+            <div style='margin-top:6px;text-align:right;'>
+                <span style='display:inline-block;background:#166534;color:white;padding:8px 14px;border-radius:999px;font-size:13px;font-weight:700;'>
+                    {safe_text(st.session_state.caller_name)}
+                </span>
+            </div>
+            """,
             unsafe_allow_html=True,
         )
 
@@ -937,46 +1074,51 @@ def page_new_call(df_user: pd.DataFrame, df_all: pd.DataFrame) -> None:
 
     with left:
         st.text_input("Phone Number", key="form_phone", placeholder="012345678")
-        render_phone_existence_notice(st.session_state.form_phone, df_all)
+        duplicate_found = render_phone_existence_notice(st.session_state.form_phone, df_all)
         st.text_input("Full Name", key="form_name", placeholder="Customer full name")
         st.selectbox("Call Purpose", PURPOSE_OPTIONS, key="form_purpose")
-        if st.session_state.form_purpose == "Other":
-            st.text_input("Specify Purpose", key="form_other_purpose")
 
     with right:
         st.selectbox("Call Status", STATUS_OPTIONS, key="form_status")
         st.text_area("Remark", key="form_remark", height=265, placeholder="Write what happened after the call.")
 
+    phone = clean_phone_number(st.session_state.form_phone)
+    purpose = st.session_state.form_purpose
+    form_ready = bool(phone and st.session_state.form_name.strip() and purpose)
+    save_disabled = duplicate_found or not form_ready
+
     b1, b2 = st.columns(2)
+
     with b1:
-        if st.button("Save", use_container_width=True, type="primary"):
-            phone = clean_phone_number(st.session_state.form_phone)
-            purpose = (
-                st.session_state.form_other_purpose.strip()
-                if st.session_state.form_purpose == "Other"
-                else st.session_state.form_purpose
-            )
-            if not phone or not st.session_state.form_name.strip() or not purpose:
+        if st.button("Save", use_container_width=True, type="primary", disabled=save_disabled):
+            if duplicate_found:
+                st.error("This phone number already exists. Saving is blocked.")
+            elif not form_ready:
                 st.error("Please complete Phone Number, Full Name, and Call Purpose")
-            elif save_new_call_to_sheet():
-                st.rerun()
+            else:
+                with st.spinner("Saving call log..."):
+                    if save_new_call_to_sheet(df_all):
+                        st.toast("Call saved successfully")
+                        st.rerun()
 
     with b2:
-        if st.button("Save & New", use_container_width=True):
-            phone = clean_phone_number(st.session_state.form_phone)
-            purpose = (
-                st.session_state.form_other_purpose.strip()
-                if st.session_state.form_purpose == "Other"
-                else st.session_state.form_purpose
-            )
-            if not phone or not st.session_state.form_name.strip() or not purpose:
+        if st.button("Save & New", use_container_width=True, disabled=save_disabled):
+            if duplicate_found:
+                st.error("This phone number already exists. Saving is blocked.")
+            elif not form_ready:
                 st.error("Please complete Phone Number, Full Name, and Call Purpose")
-            elif save_new_call_to_sheet():
-                queue_form_reset()
-                st.rerun()
+            else:
+                with st.spinner("Saving and preparing a new form..."):
+                    if save_new_call_to_sheet(df_all):
+                        queue_form_reset()
+                        st.toast("Call saved successfully")
+                        st.rerun()
 
     st.write("")
-    st.markdown("<div style='font-size:22px;font-weight:900;color:#0f172a;margin:8px 0 12px 0;'>Recent Calls</div>", unsafe_allow_html=True)
+    st.markdown(
+        "<div style='font-size:22px;font-weight:900;color:#0f172a;margin:8px 0 12px 0;'>Recent Calls</div>",
+        unsafe_allow_html=True,
+    )
 
     recent = df_user.sort_values("call_datetime", ascending=False).head(8).copy() if not df_user.empty else df_user.copy()
     if recent.empty:
@@ -1055,9 +1197,10 @@ def page_callback_queue(df_user: pd.DataFrame) -> None:
                 callback_remark = st.text_area("New Remark", key=f"queue_remark_{row['_row_number']}", height=120)
 
                 if st.button("Save Callback Result", key=f"save_{row['_row_number']}", use_container_width=True, type="primary"):
-                    if save_callback_result(row, callback_status, callback_remark):
-                        st.success("Callback result saved")
-                        st.rerun()
+                    with st.spinner("Saving callback result..."):
+                        if save_callback_result(row, callback_status, callback_remark):
+                            st.success("Callback result saved")
+                            st.rerun()
 
 
 def page_history(df_user: pd.DataFrame) -> None:
@@ -1117,10 +1260,10 @@ def page_history(df_user: pd.DataFrame) -> None:
 
 
 def main_app() -> None:
-    raw_df = get_call_log_data()
-    df_all = normalize_call_log_df(raw_df)
-
-    df_user = df_all[df_all["staff_id"] == safe_text(st.session_state.staff_id)].copy() if not df_all.empty else df_all.copy()
+    with st.spinner("Loading call platform..."):
+        raw_df = get_call_log_data()
+        df_all = normalize_call_log_df(raw_df)
+        df_user = df_all[df_all["staff_id"] == safe_text(st.session_state.staff_id)].copy() if not df_all.empty else df_all.copy()
 
     render_header(df_user)
 
