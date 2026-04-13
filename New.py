@@ -78,61 +78,25 @@ MOTIVATION_QUOTE = "Every call is a new chance to create trust, solve a need, an
 st.markdown(
     """
     <style>
-        /* ── Kill every Streamlit chrome element ── */
-        #root > div:first-child,
-        .stApp > header,
+        .stApp {
+            background: linear-gradient(135deg, #f8fffb 0%, #f2f8f4 45%, #f8fafc 100%);
+        }
+
         [data-testid="stHeader"],
         [data-testid="stToolbar"],
         [data-testid="stDecoration"],
-        [data-testid="stStatusWidget"],
-        [data-testid="stAppViewBlockContainer"] > section > div.block-container > div:first-child > div:first-child > div:empty,
         #MainMenu,
         footer,
         header {
-            display: none !important;
             visibility: hidden !important;
-            height: 0px !important;
-            max-height: 0px !important;
-            min-height: 0px !important;
-            overflow: hidden !important;
-            padding: 0px !important;
-            margin: 0px !important;
-        }
-
-        .stApp {
-            background: linear-gradient(135deg, #f8fffb 0%, #f2f8f4 45%, #f8fafc 100%);
-            margin-top: 0 !important;
+            display: none !important;
+            height: 0 !important;
         }
 
         .block-container {
-            padding-top: 1rem !important;
+            padding-top: 0.8rem !important;
             padding-bottom: 1.6rem !important;
             max-width: 1380px;
-        }
-
-        /* Hide empty pill divs Streamlit injects at top */
-        .stApp > div > div > div > div:first-child:empty,
-        .stApp > div > div > div:first-child:empty {
-            display: none !important;
-            height: 0 !important;
-            min-height: 0 !important;
-        }
-
-        .hero-shell {
-            background: white;
-            border: 1px solid #e5e7eb;
-            border-radius: 28px;
-            padding: 24px 28px;
-            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
-            margin-bottom: 18px;
-        }
-
-        .login-shell {
-            background: white;
-            border: 1px solid #e5e7eb;
-            border-radius: 32px;
-            padding: 30px;
-            box-shadow: 0 20px 40px rgba(22, 101, 52, 0.08);
         }
 
         .logo-fallback {
@@ -146,21 +110,6 @@ st.markdown(
             justify-content: center;
             font-size: 22px;
             font-weight: 900;
-        }
-
-        .soft-panel {
-            background: white;
-            border: 1px solid #e5e7eb;
-            border-radius: 28px;
-            padding: 24px;
-            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
-        }
-
-        .sub-panel {
-            background: #f8fafc;
-            border: 1px solid #e5e7eb;
-            border-radius: 24px;
-            padding: 20px;
         }
 
         .mini-stat-row {
@@ -265,36 +214,6 @@ st.markdown(
             border-radius: 18px;
         }
     </style>
-
-    <script>
-        (function() {
-            function removeEmptyTopDivs() {
-                // Target the stApp element and hide any empty immediate children
-                var app = document.querySelector('.stApp');
-                if (!app) return;
-                var children = Array.from(app.children);
-                children.forEach(function(child) {
-                    if (child.innerHTML.trim() === '' || child.offsetHeight < 10) {
-                        child.style.cssText = 'display:none!important;height:0!important;';
-                    }
-                });
-                // Also target the top-level wrapper div Streamlit injects
-                var wrapper = document.querySelector('[data-testid="stAppViewContainer"]');
-                if (wrapper) {
-                    var wrapperChildren = Array.from(wrapper.children);
-                    wrapperChildren.forEach(function(child) {
-                        if (child.innerHTML.trim() === '' && child.offsetHeight < 80) {
-                            child.style.cssText = 'display:none!important;height:0!important;';
-                        }
-                    });
-                }
-            }
-            document.addEventListener('DOMContentLoaded', removeEmptyTopDivs);
-            setTimeout(removeEmptyTopDivs, 200);
-            setTimeout(removeEmptyTopDivs, 600);
-            setTimeout(removeEmptyTopDivs, 1200);
-        })();
-    </script>
     """,
     unsafe_allow_html=True,
 )
@@ -302,10 +221,6 @@ st.markdown(
 
 def now_ts() -> datetime:
     return datetime.now()
-
-
-def today_str() -> str:
-    return date.today().strftime("%Y-%m-%d")
 
 
 def clean_phone_number(phone: str) -> str:
@@ -570,10 +485,21 @@ def normalize_followup_df(df: pd.DataFrame) -> pd.DataFrame:
         df[col] = df[col].apply(safe_text)
 
     for col in [
-        "staff_id", "customer_name", "customer_phone", "call_status",
-        "call_purpose", "remark", "next_action", "queue_status",
-        "last_updated", "call_datetime", "callback_date", "notes",
-        "call_notes", "followup_date", "caller_name",
+        "staff_id",
+        "customer_name",
+        "customer_phone",
+        "call_status",
+        "call_purpose",
+        "remark",
+        "next_action",
+        "queue_status",
+        "last_updated",
+        "call_datetime",
+        "callback_date",
+        "notes",
+        "call_notes",
+        "followup_date",
+        "caller_name",
     ]:
         if col not in df.columns:
             df[col] = ""
@@ -585,6 +511,7 @@ def normalize_followup_df(df: pd.DataFrame) -> pd.DataFrame:
     df["remark"] = df["remark"].where(df["remark"] != "", df["notes"])
     df["remark"] = df["remark"].where(df["remark"] != "", df["call_notes"])
     df["call_purpose"] = df["call_purpose"].where(df["call_purpose"] != "", df.get("source", ""))
+
     df["call_datetime"] = df["call_datetime"].where(df["call_datetime"] != "", df["last_updated"])
     df["call_datetime"] = pd.to_datetime(df["call_datetime"], errors="coerce")
     df["callback_date"] = df["callback_date"].where(df["callback_date"] != "", df["followup_date"])
@@ -605,6 +532,7 @@ def normalize_followup_df(df: pd.DataFrame) -> pd.DataFrame:
             derived_queue.append("Pending Callback")
         else:
             derived_queue.append("Closed")
+
     df["queue_status"] = derived_queue
     df["staff_id"] = df["staff_id"].astype(str).str.strip()
     df["caller_name"] = df["caller_name"].where(df["caller_name"] != "", df["staff_id"])
@@ -631,11 +559,13 @@ def save_new_call_to_sheet() -> bool:
     worksheet = ensure_followup_sheet()
     if worksheet is None:
         return False
+
     phone_clean = clean_phone_number(st.session_state.form_phone)
     purpose = st.session_state.form_other_purpose.strip() if st.session_state.form_purpose == "Other" else st.session_state.form_purpose
     status = st.session_state.form_status
     callback_date = st.session_state.form_callback_date.strftime("%Y-%m-%d") if status in CALLBACK_STATUSES else ""
     now_string = now_ts().strftime("%Y-%m-%d %H:%M:%S")
+
     record = {
         "call_id": safe_text(pd.Timestamp.now().strftime("%y%m%d%H%M%S%f"))[-10:],
         "call_datetime": now_string,
@@ -689,8 +619,10 @@ def save_callback_result(row_data: pd.Series, callback_status: str, callback_dat
     worksheet = ensure_followup_sheet()
     if worksheet is None:
         return False
+
     now_string = now_ts().strftime("%Y-%m-%d %H:%M:%S")
     next_callback = callback_date.strftime("%Y-%m-%d") if callback_status in CALLBACK_STATUSES else ""
+
     record = {
         "call_id": safe_text(pd.Timestamp.now().strftime("%y%m%d%H%M%S%f"))[-10:],
         "call_datetime": now_string,
@@ -724,10 +656,16 @@ def save_callback_result(row_data: pd.Series, callback_status: str, callback_dat
     created = append_record_to_sheet(worksheet, record)
     if not created:
         return False
+
     row_number = int(row_data.get("_row_number"))
     return update_followup_row(
         row_number,
-        {"queue_status": "Completed", "status": "Completed", "action_after_followup": "Completed", "last_updated": now_string},
+        {
+            "queue_status": "Completed",
+            "status": "Completed",
+            "action_after_followup": "Completed",
+            "last_updated": now_string,
+        },
     )
 
 
@@ -736,7 +674,12 @@ def complete_queue_item(row_data: pd.Series) -> bool:
     now_string = now_ts().strftime("%Y-%m-%d %H:%M:%S")
     return update_followup_row(
         row_number,
-        {"queue_status": "Completed", "status": "Completed", "action_after_followup": "Completed", "last_updated": now_string},
+        {
+            "queue_status": "Completed",
+            "status": "Completed",
+            "action_after_followup": "Completed",
+            "last_updated": now_string,
+        },
     )
 
 
@@ -762,6 +705,7 @@ def render_logo() -> None:
 
 def login_page() -> None:
     left, right = st.columns([1.15, 0.85], gap="large")
+
     with left:
         render_logo()
         st.markdown(
@@ -774,14 +718,15 @@ def login_page() -> None:
             """,
             unsafe_allow_html=True,
         )
+
     with right:
-        st.markdown("<div class='login-shell'>", unsafe_allow_html=True)
-        st.markdown("<div style='font-size:28px;font-weight:900;color:#0f172a;'>Login</div>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:28px;font-weight:900;color:#0f172a;margin-top:40px;'>Login</div>", unsafe_allow_html=True)
         st.markdown(
             "<div style='margin-top:6px;font-size:14px;color:#6b7280;'>Use your existing User ID and password from the Google Sheet.</div>",
             unsafe_allow_html=True,
         )
         st.write("")
+
         with st.form("login_form"):
             staff_id = st.text_input("User ID")
             password = st.text_input("Password", type="password")
@@ -797,7 +742,6 @@ def login_page() -> None:
                     st.session_state.branch_manager = profile["branch_manager"]
                     reset_form()
                     st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
 
 
 def render_header(user_df: pd.DataFrame) -> None:
@@ -805,15 +749,14 @@ def render_header(user_df: pd.DataFrame) -> None:
     picked_up = len(user_df[user_df["call_status"] == "Pick Up"]) if not user_df.empty else 0
     pending_queue = len(user_df[user_df["queue_status"] == "Pending Callback"]) if not user_df.empty else 0
 
-    st.markdown("<div class='hero-shell'>", unsafe_allow_html=True)
     left, right = st.columns([0.68, 0.32])
+
     with left:
         st.markdown(
             f"""
             <div style='font-size:34px;font-weight:900;letter-spacing:-0.03em;color:#0f172a;'>Call Activity Tracking System</div>
             <div style='margin-top:8px;font-size:14px;color:#6b7280;'>
-                Logged in as <b>{safe_text(st.session_state.caller_name)}</b> ({safe_text(st.session_state.staff_id)}).
-                Personal queue and history are filtered by the logged-in salesperson.
+                Logged in as <b>{safe_text(st.session_state.caller_name)}</b> ({safe_text(st.session_state.staff_id)}). Personal queue and history are filtered by the logged-in salesperson.
             </div>
             <div class='mini-stat-row'>
                 <div class='mini-stat'>Today Calls: {today_calls}</div>
@@ -823,6 +766,7 @@ def render_header(user_df: pd.DataFrame) -> None:
             """,
             unsafe_allow_html=True,
         )
+
     with right:
         c1, c2 = st.columns(2)
         with c1:
@@ -834,18 +778,17 @@ def render_header(user_df: pd.DataFrame) -> None:
                 st.session_state.staff_id = ""
                 st.session_state.caller_name = ""
                 st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("<hr style='margin:18px 0 8px 0;border:0;border-top:1px solid #e5e7eb;'>", unsafe_allow_html=True)
 
 
 def page_new_call(df_user: pd.DataFrame) -> None:
-    st.markdown("<div class='soft-panel'>", unsafe_allow_html=True)
     top1, top2 = st.columns([0.75, 0.25])
+
     with top1:
         st.markdown("<div style='font-size:28px;font-weight:900;color:#0f172a;'>New Call Log</div>", unsafe_allow_html=True)
-        st.markdown(
-            "<div style='margin-top:4px;font-size:14px;color:#6b7280;'>Fill in phone, name, purpose, status, callback date, and remark.</div>",
-            unsafe_allow_html=True,
-        )
+        st.markdown("<div style='margin-top:4px;font-size:14px;color:#6b7280;'>Only the simplified fields remain: phone, name, purpose, status, callback date, and remark.</div>", unsafe_allow_html=True)
+
     with top2:
         st.markdown(
             f"<div style='margin-top:6px;text-align:right;'><span style='display:inline-block;background:#166534;color:white;padding:8px 14px;border-radius:999px;font-size:13px;font-weight:700;'>{safe_text(st.session_state.caller_name)}</span></div>",
@@ -854,22 +797,19 @@ def page_new_call(df_user: pd.DataFrame) -> None:
 
     st.write("")
     left, right = st.columns(2, gap="large")
+
     with left:
-        st.markdown("<div class='sub-panel'>", unsafe_allow_html=True)
         st.text_input("Phone Number", key="form_phone", placeholder="012345678")
         st.text_input("Full Name", key="form_name", placeholder="Customer full name")
         st.selectbox("Call Purpose", PURPOSE_OPTIONS, key="form_purpose")
         if st.session_state.form_purpose == "Other":
             st.text_input("Specify Purpose", key="form_other_purpose")
-        st.markdown("</div>", unsafe_allow_html=True)
 
     with right:
-        st.markdown("<div class='sub-panel'>", unsafe_allow_html=True)
         st.selectbox("Call Status", STATUS_OPTIONS, key="form_status")
         if st.session_state.form_status in CALLBACK_STATUSES:
             st.date_input("Callback Date", key="form_callback_date", min_value=date.today())
-        st.text_area("Remark", key="form_remark", height=220, placeholder="Write what happened after the call...")
-        st.markdown("</div>", unsafe_allow_html=True)
+        st.text_area("Remark", key="form_remark", height=220, placeholder="Write what happened after the call.")
 
     b1, b2 = st.columns(2)
     with b1:
@@ -881,6 +821,7 @@ def page_new_call(df_user: pd.DataFrame) -> None:
             elif save_new_call_to_sheet():
                 st.success("Call saved successfully")
                 st.rerun()
+
     with b2:
         if st.button("Save & New", use_container_width=True):
             phone = clean_phone_number(st.session_state.form_phone)
@@ -894,33 +835,42 @@ def page_new_call(df_user: pd.DataFrame) -> None:
 
     st.write("")
     st.markdown("<div style='font-size:22px;font-weight:900;color:#0f172a;margin:8px 0 12px 0;'>Recent Calls</div>", unsafe_allow_html=True)
+
     recent = df_user.sort_values("call_datetime", ascending=False).head(8).copy() if not df_user.empty else df_user.copy()
     if recent.empty:
         st.info("No calls yet.")
     else:
         recent_view = recent[["call_datetime", "customer_phone", "customer_name", "call_purpose", "call_status", "queue_status", "remark"]].copy()
         recent_view["call_datetime"] = recent_view["call_datetime"].apply(fmt_datetime)
-        recent_view = recent_view.rename(columns={
-            "call_datetime": "Date", "customer_phone": "Phone", "customer_name": "Name",
-            "call_purpose": "Purpose", "call_status": "Status", "queue_status": "Queue", "remark": "Remark",
-        })
+        recent_view = recent_view.rename(
+            columns={
+                "call_datetime": "Date",
+                "customer_phone": "Phone",
+                "customer_name": "Name",
+                "call_purpose": "Purpose",
+                "call_status": "Status",
+                "queue_status": "Queue",
+                "remark": "Remark",
+            }
+        )
         st.dataframe(recent_view, use_container_width=True, hide_index=True)
-    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def page_unpicked_queue(df_user: pd.DataFrame) -> None:
-    st.markdown("<div class='soft-panel'>", unsafe_allow_html=True)
     top1, top2 = st.columns([0.72, 0.28])
+
     with top1:
         st.markdown("<div style='font-size:28px;font-weight:900;color:#0f172a;'>Unpicked Up Queue</div>", unsafe_allow_html=True)
         st.markdown(
-            f"<div style='margin-top:4px;font-size:14px;color:#6b7280;'>Only {safe_text(st.session_state.caller_name)} sees this queue after login.</div>",
+            f"<div style='margin-top:4px;font-size:14px;color:#6b7280;'>Only {safe_text(st.session_state.caller_name)} sees this queue after login, so the same salesperson can call the customer again later.</div>",
             unsafe_allow_html=True,
         )
+
     with top2:
         st.selectbox("Queue Filter", ["All Pending", "Overdue", "Due Today", "Upcoming"], key="queue_filter")
 
     queue_df = df_user[df_user["queue_status"] == "Pending Callback"].copy() if not df_user.empty else df_user.copy()
+
     if st.session_state.queue_filter == "Overdue":
         queue_df = queue_df[queue_df["callback_date"].notna() & (queue_df["callback_date"].dt.date < date.today())]
     elif st.session_state.queue_filter == "Due Today":
@@ -929,6 +879,7 @@ def page_unpicked_queue(df_user: pd.DataFrame) -> None:
         queue_df = queue_df[queue_df["callback_date"].notna() & (queue_df["callback_date"].dt.date > date.today())]
 
     queue_df = queue_df.sort_values(["callback_date", "call_datetime"], ascending=[True, False], na_position="last")
+
     st.markdown(
         f"<div class='queue-note'>{len(queue_df)} customer(s) in {safe_text(st.session_state.caller_name)}'s queue.</div>",
         unsafe_allow_html=True,
@@ -941,15 +892,19 @@ def page_unpicked_queue(df_user: pd.DataFrame) -> None:
             callback_label = row["callback_date"].strftime("%Y-%m-%d") if pd.notna(row["callback_date"]) else "-"
             with st.expander(f"📞 {safe_text(row['customer_name'])} | {safe_text(row['customer_phone'])} | Callback: {callback_label}", expanded=False):
                 a1, a2, a3, a4 = st.columns(4)
+
                 with a1:
                     st.markdown("**Phone**")
                     st.write(safe_text(row["customer_phone"]))
+
                 with a2:
                     st.markdown("**Purpose**")
                     st.write(safe_text(row["call_purpose"]) or "-")
+
                 with a3:
                     st.markdown("**Previous Status**")
                     st.markdown(queue_status_chip(safe_text(row["call_status"])), unsafe_allow_html=True)
+
                 with a4:
                     st.markdown("**Last Call**")
                     st.write(fmt_datetime(row["call_datetime"]))
@@ -958,24 +913,29 @@ def page_unpicked_queue(df_user: pd.DataFrame) -> None:
                     st.markdown(f"<div class='queue-note'>{safe_text(row['remark'])}</div>", unsafe_allow_html=True)
 
                 callback_status = st.selectbox("Callback Status", STATUS_OPTIONS, key=f"queue_status_{row['_row_number']}")
-                callback_date = st.date_input("Next Callback Date", value=date.today() + timedelta(days=1), min_value=date.today(), key=f"queue_date_{row['_row_number']}")
+                callback_date = st.date_input(
+                    "Next Callback Date",
+                    value=date.today() + timedelta(days=1),
+                    min_value=date.today(),
+                    key=f"queue_date_{row['_row_number']}",
+                )
                 callback_remark = st.text_area("New Remark", key=f"queue_remark_{row['_row_number']}", height=120)
+
                 b1, b2 = st.columns(2)
                 with b1:
                     if st.button("Save Result", key=f"save_{row['_row_number']}", use_container_width=True, type="primary"):
                         if save_callback_result(row, callback_status, callback_date, callback_remark):
                             st.success("Callback result saved")
                             st.rerun()
+
                 with b2:
                     if st.button("Close Item", key=f"close_{row['_row_number']}", use_container_width=True):
                         if complete_queue_item(row):
                             st.success("Queue item closed")
                             st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def page_history(df_user: pd.DataFrame) -> None:
-    st.markdown("<div class='soft-panel'>", unsafe_allow_html=True)
     st.markdown("<div style='font-size:28px;font-weight:900;color:#0f172a;'>Call History</div>", unsafe_allow_html=True)
     st.write("")
 
@@ -994,8 +954,10 @@ def page_history(df_user: pd.DataFrame) -> None:
             history_df["customer_name"].astype(str).str.lower().str.contains(q)
             | history_df["customer_phone"].astype(str).str.lower().str.contains(q)
         ]
+
     if st.session_state.history_status != "All":
         history_df = history_df[history_df["call_status"] == st.session_state.history_status]
+
     if st.session_state.history_purpose != "All":
         history_df = history_df[history_df["call_purpose"] == st.session_state.history_purpose]
 
@@ -1005,12 +967,18 @@ def page_history(df_user: pd.DataFrame) -> None:
     else:
         view = history_df[["call_datetime", "customer_phone", "customer_name", "call_purpose", "call_status", "queue_status", "remark"]].copy()
         view["call_datetime"] = view["call_datetime"].apply(fmt_datetime)
-        view = view.rename(columns={
-            "call_datetime": "Date", "customer_phone": "Phone", "customer_name": "Name",
-            "call_purpose": "Purpose", "call_status": "Status", "queue_status": "Queue", "remark": "Remark",
-        })
+        view = view.rename(
+            columns={
+                "call_datetime": "Date",
+                "customer_phone": "Phone",
+                "customer_name": "Name",
+                "call_purpose": "Purpose",
+                "call_status": "Status",
+                "queue_status": "Queue",
+                "remark": "Remark",
+            }
+        )
         st.dataframe(view, use_container_width=True, hide_index=True, height=520)
-    st.markdown("</div>", unsafe_allow_html=True)
 
 
 def main_app() -> None:
@@ -1026,8 +994,10 @@ def main_app() -> None:
 
     with new_tab:
         page_new_call(df_user)
+
     with queue_tab:
         page_unpicked_queue(df_user)
+
     with history_tab:
         page_history(df_user)
 
