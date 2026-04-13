@@ -269,6 +269,7 @@ def ensure_form_state() -> None:
         "history_search": "",
         "history_status": "All",
         "history_purpose": "All",
+        "_pending_form_reset": False,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -283,6 +284,16 @@ def reset_form() -> None:
     st.session_state.form_status = "Pick Up"
     st.session_state.form_callback_date = date.today() + timedelta(days=1)
     st.session_state.form_remark = ""
+
+
+def queue_form_reset() -> None:
+    st.session_state["_pending_form_reset"] = True
+
+
+def apply_pending_form_reset() -> None:
+    if st.session_state.get("_pending_form_reset", False):
+        reset_form()
+        st.session_state["_pending_form_reset"] = False
 
 
 def init_state() -> None:
@@ -740,6 +751,7 @@ def login_page() -> None:
                     st.session_state.user_role = profile["role"]
                     st.session_state.branch_name = profile["branch_name"]
                     st.session_state.branch_manager = profile["branch_manager"]
+                    st.session_state["_pending_form_reset"] = False
                     reset_form()
                     st.rerun()
 
@@ -783,6 +795,8 @@ def render_header(user_df: pd.DataFrame) -> None:
 
 
 def page_new_call(df_user: pd.DataFrame) -> None:
+    apply_pending_form_reset()
+
     top1, top2 = st.columns([0.75, 0.25])
 
     with top1:
@@ -819,7 +833,6 @@ def page_new_call(df_user: pd.DataFrame) -> None:
             if not phone or not st.session_state.form_name.strip() or not purpose:
                 st.error("Please complete Phone Number, Full Name, and Call Purpose")
             elif save_new_call_to_sheet():
-                st.success("Call saved successfully")
                 st.rerun()
 
     with b2:
@@ -829,8 +842,7 @@ def page_new_call(df_user: pd.DataFrame) -> None:
             if not phone or not st.session_state.form_name.strip() or not purpose:
                 st.error("Please complete Phone Number, Full Name, and Call Purpose")
             elif save_new_call_to_sheet():
-                reset_form()
-                st.success("Call saved successfully")
+                queue_form_reset()
                 st.rerun()
 
     st.write("")
