@@ -2,7 +2,6 @@ import base64
 import os
 import re
 from datetime import date, datetime, timedelta
-from io import BytesIO
 
 import gspread
 import pandas as pd
@@ -11,9 +10,10 @@ import streamlit as st
 from google.oauth2.service_account import Credentials
 
 st.set_page_config(
-    page_title="Call Activity Tracking System",
+    page_title="Sale Call Management System",
     page_icon="📞",
     layout="wide",
+    initial_sidebar_state="collapsed",
 )
 
 SHEET_ID = "1FeAYu8jgE_R7IWjcDPjhXsmXvpn79GbVAMa_WU0mxQs"
@@ -74,16 +74,32 @@ FOLLOWUP_REQUIRED_HEADERS = [
     "action_after_followup",
 ]
 
+MOTIVATION_QUOTE = "Every call is a new chance to create trust, solve a need, and open the next opportunity."
+
 st.markdown(
     """
     <style>
         .stApp {
             background: linear-gradient(135deg, #f8fffb 0%, #f2f8f4 45%, #f8fafc 100%);
         }
-        .block-container {
-            padding-top: 1.2rem;
-            padding-bottom: 2rem;
+
+        [data-testid="stHeader"],
+        [data-testid="stToolbar"],
+        [data-testid="stDecoration"],
+        #MainMenu,
+        footer,
+        header {
+            visibility: hidden !important;
+            display: none !important;
+            height: 0 !important;
         }
+
+        .block-container {
+            padding-top: 0.8rem !important;
+            padding-bottom: 1.6rem !important;
+            max-width: 1380px;
+        }
+
         .hero-shell {
             background: white;
             border: 1px solid #e5e7eb;
@@ -92,6 +108,7 @@ st.markdown(
             box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
             margin-bottom: 18px;
         }
+
         .login-shell {
             background: white;
             border: 1px solid #e5e7eb;
@@ -99,6 +116,7 @@ st.markdown(
             padding: 30px;
             box-shadow: 0 20px 40px rgba(22, 101, 52, 0.08);
         }
+
         .logo-fallback {
             width: 58px;
             height: 58px;
@@ -111,6 +129,7 @@ st.markdown(
             font-size: 22px;
             font-weight: 900;
         }
+
         .soft-panel {
             background: white;
             border: 1px solid #e5e7eb;
@@ -118,12 +137,14 @@ st.markdown(
             padding: 24px;
             box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
         }
+
         .sub-panel {
             background: #f8fafc;
             border: 1px solid #e5e7eb;
             border-radius: 24px;
             padding: 20px;
         }
+
         .info-pill {
             display: inline-flex;
             align-items: center;
@@ -136,12 +157,14 @@ st.markdown(
             font-size: 13px;
             font-weight: 700;
         }
+
         .mini-stat-row {
             display: flex;
             gap: 12px;
             flex-wrap: wrap;
             margin-top: 14px;
         }
+
         .mini-stat {
             display: inline-flex;
             align-items: center;
@@ -154,6 +177,7 @@ st.markdown(
             color: #334155;
             font-weight: 700;
         }
+
         .queue-note {
             margin-top: 10px;
             background: #ecfdf5;
@@ -163,38 +187,75 @@ st.markdown(
             color: #334155;
             font-size: 14px;
         }
+
+        .motivation-box {
+            margin-top: 24px;
+            max-width: 760px;
+            font-size: 18px;
+            line-height: 1.8;
+            color: #475569;
+        }
+
+        .motivation-sign {
+            margin-top: 10px;
+            font-size: 14px;
+            font-weight: 700;
+            color: #166534;
+        }
+
         .stButton > button {
             border-radius: 16px;
-            height: 44px;
+            height: 46px;
             font-weight: 700;
+            border: 1px solid #d1d5db;
+            box-shadow: none;
         }
+
+        .stButton > button[kind="primary"] {
+            background: #ef4444;
+            color: white;
+            border: none;
+        }
+
+        .stButton > button[kind="primary"]:hover {
+            background: #dc2626;
+            color: white;
+        }
+
         .stTextInput > div > div > input,
         .stTextArea textarea,
         .stDateInput input,
         .stSelectbox [data-baseweb="select"] > div {
             border-radius: 16px !important;
+            min-height: 46px;
+            background: #f8fafc !important;
         }
+
         .stTabs [data-baseweb="tab-list"] {
             gap: 28px;
             background: transparent;
             border-bottom: 1px solid #e5e7eb;
             padding-left: 2px;
             padding-right: 2px;
+            margin-bottom: 18px;
         }
+
         .stTabs [data-baseweb="tab"] {
             height: 52px;
             background: transparent;
             border: none;
             color: #334155;
-            font-size: 15px;
+            font-size: 16px;
             font-weight: 600;
             padding-left: 0;
             padding-right: 0;
         }
+
         .stTabs [aria-selected="true"] {
             color: #ef4444 !important;
             border-bottom: 3px solid #ef4444 !important;
         }
+
         div[data-testid="stImage"] img {
             border-radius: 18px;
         }
@@ -210,10 +271,6 @@ def now_ts() -> datetime:
 
 def today_str() -> str:
     return date.today().strftime("%Y-%m-%d")
-
-
-def plus_days(days: int) -> str:
-    return (date.today() + timedelta(days=days)).strftime("%Y-%m-%d")
 
 
 def clean_phone_number(phone: str) -> str:
@@ -236,13 +293,10 @@ def safe_text(value) -> str:
 
 
 def fmt_datetime(value) -> str:
-    try:
-        parsed = pd.to_datetime(value, errors="coerce")
-        if pd.isna(parsed):
-            return "-"
-        return parsed.strftime("%d %b %Y %H:%M")
-    except Exception:
-        return safe_text(value)
+    parsed = pd.to_datetime(value, errors="coerce")
+    if pd.isna(parsed):
+        return "-"
+    return parsed.strftime("%d %b %Y %H:%M")
 
 
 def get_logo_base64() -> str:
@@ -395,23 +449,17 @@ def load_staff_master_df() -> pd.DataFrame:
         df = pd.DataFrame(records)
         df.columns = [safe_text(c).lower() for c in df.columns]
 
-        id_candidates = ["id", "staff_id", "staff id"]
-        role_candidates = ["role"]
-        branch_candidates = ["appreviation", "abbreviation", "branch_name", "branch"]
-        manager_candidates = ["team lead", "branch_manager", "manager", "team_lead"]
-        name_candidates = ["name", "full_name", "staff_name", "caller_name"]
-
         def find_col(candidates):
             for col in candidates:
                 if col in df.columns:
                     return col
             return None
 
-        id_col = find_col(id_candidates)
-        role_col = find_col(role_candidates)
-        branch_col = find_col(branch_candidates)
-        manager_col = find_col(manager_candidates)
-        name_col = find_col(name_candidates)
+        id_col = find_col(["id", "staff_id", "staff id"])
+        role_col = find_col(["role"])
+        branch_col = find_col(["appreviation", "abbreviation", "branch_name", "branch"])
+        manager_col = find_col(["team lead", "branch_manager", "manager", "team_lead"])
+        name_col = find_col(["name", "full_name", "staff_name", "caller_name"])
 
         out = pd.DataFrame()
         out["staff_id"] = df[id_col].astype(str).str.strip() if id_col else ""
@@ -453,7 +501,7 @@ def load_staff_profile(staff_id: str) -> dict:
     }
 
 
-def get_followup_data_cached() -> pd.DataFrame:
+def get_followup_data() -> pd.DataFrame:
     worksheet = ensure_followup_sheet()
     if worksheet is None:
         return pd.DataFrame()
@@ -509,7 +557,6 @@ def normalize_followup_df(df: pd.DataFrame) -> pd.DataFrame:
 
     df["remark"] = df["remark"].where(df["remark"] != "", df["notes"])
     df["remark"] = df["remark"].where(df["remark"] != "", df["call_notes"])
-
     df["call_purpose"] = df["call_purpose"].where(df["call_purpose"] != "", df.get("source", ""))
 
     df["call_datetime"] = df["call_datetime"].where(df["call_datetime"] != "", df["last_updated"])
@@ -582,11 +629,11 @@ def save_new_call_to_sheet() -> bool:
     phone_clean = clean_phone_number(st.session_state.form_phone)
     purpose = st.session_state.form_other_purpose.strip() if st.session_state.form_purpose == "Other" else st.session_state.form_purpose
     status = st.session_state.form_status
-    callback_date = st.session_state.form_callback_date if status in CALLBACK_STATUSES else ""
+    callback_date = st.session_state.form_callback_date.strftime("%Y-%m-%d") if status in CALLBACK_STATUSES else ""
     now_string = now_ts().strftime("%Y-%m-%d %H:%M:%S")
 
     record = {
-        "call_id": uuid.uuid4().hex[:10].upper(),
+        "call_id": safe_text(pd.Timestamp.now().strftime("%y%m%d%H%M%S%f"))[-10:],
         "call_datetime": now_string,
         "customer_name": st.session_state.form_name.strip(),
         "customer_phone": phone_clean,
@@ -642,7 +689,7 @@ def save_callback_result(row_data: pd.Series, callback_status: str, callback_dat
     next_callback = callback_date.strftime("%Y-%m-%d") if callback_status in CALLBACK_STATUSES else ""
 
     record = {
-        "call_id": uuid.uuid4().hex[:10].upper(),
+        "call_id": safe_text(pd.Timestamp.now().strftime("%y%m%d%H%M%S%f"))[-10:],
         "call_datetime": now_string,
         "customer_name": safe_text(row_data.get("customer_name")),
         "customer_phone": safe_text(row_data.get("customer_phone")),
@@ -701,15 +748,12 @@ def complete_queue_item(row_data: pd.Series) -> bool:
     )
 
 
-def render_logo():
+def render_logo() -> None:
     logo_data = get_logo_base64()
     col1, col2 = st.columns([0.08, 0.92])
     with col1:
         if logo_data:
-            st.markdown(
-                f"<img src='data:image/png;base64,{logo_data}' width='58'>",
-                unsafe_allow_html=True,
-            )
+            st.markdown(f"<img src='data:image/png;base64,{logo_data}' width='58'>", unsafe_allow_html=True)
         else:
             st.markdown("<div class='logo-fallback'>C</div>", unsafe_allow_html=True)
     with col2:
@@ -727,19 +771,16 @@ def render_logo():
 def login_page() -> None:
     left, right = st.columns([1.15, 0.85], gap="large")
     with left:
-        st.markdown(
-            """
-            <div class='info-pill'>Modern sales call interface</div>
-            <div style='height:18px;'></div>
-            """,
-            unsafe_allow_html=True,
-        )
+        st.markdown("<div class='info-pill'>Modern sales call interface</div>", unsafe_allow_html=True)
+        st.write("")
         render_logo()
         st.markdown(
-            """
+            f"""
             <div style='margin-top:18px;font-size:52px;line-height:1.05;font-weight:900;color:#0f172a;max-width:780px;'>
                 SALE CALL MANAGEMENT SYSTEM
             </div>
+            <div class='motivation-box'>{MOTIVATION_QUOTE}</div>
+            <div class='motivation-sign'>Start strong. Speak with purpose.</div>
             """,
             unsafe_allow_html=True,
         )
@@ -772,7 +813,7 @@ def render_header(user_df: pd.DataFrame) -> None:
     pending_queue = len(user_df[user_df["queue_status"] == "Pending Callback"]) if not user_df.empty else 0
 
     st.markdown("<div class='hero-shell'>", unsafe_allow_html=True)
-    left, right = st.columns([0.62, 0.38])
+    left, right = st.columns([0.68, 0.32])
     with left:
         st.markdown(
             f"""
@@ -789,12 +830,11 @@ def render_header(user_df: pd.DataFrame) -> None:
             unsafe_allow_html=True,
         )
     with right:
-        top1, top2 = st.columns(2)
-        with top1:
+        c1, c2 = st.columns(2)
+        with c1:
             if st.button("Refresh", use_container_width=True):
-                st.cache_data.clear()
                 st.rerun()
-        with top2:
+        with c2:
             if st.button("Logout", use_container_width=True):
                 st.session_state.logged_in = False
                 st.session_state.staff_id = ""
@@ -841,21 +881,19 @@ def page_new_call(df_user: pd.DataFrame) -> None:
             purpose = st.session_state.form_other_purpose.strip() if st.session_state.form_purpose == "Other" else st.session_state.form_purpose
             if not phone or not st.session_state.form_name.strip() or not purpose:
                 st.error("Please complete Phone Number, Full Name, and Call Purpose")
-            else:
-                if save_new_call_to_sheet():
-                    st.success("Call saved successfully")
-                    st.rerun()
+            elif save_new_call_to_sheet():
+                st.success("Call saved successfully")
+                st.rerun()
     with b2:
         if st.button("Save & New", use_container_width=True):
             phone = clean_phone_number(st.session_state.form_phone)
             purpose = st.session_state.form_other_purpose.strip() if st.session_state.form_purpose == "Other" else st.session_state.form_purpose
             if not phone or not st.session_state.form_name.strip() or not purpose:
                 st.error("Please complete Phone Number, Full Name, and Call Purpose")
-            else:
-                if save_new_call_to_sheet():
-                    reset_form()
-                    st.success("Call saved successfully")
-                    st.rerun()
+            elif save_new_call_to_sheet():
+                reset_form()
+                st.success("Call saved successfully")
+                st.rerun()
 
     st.write("")
     st.markdown("<div style='font-size:22px;font-weight:900;color:#0f172a;margin:8px 0 12px 0;'>Recent Calls</div>", unsafe_allow_html=True)
@@ -1055,7 +1093,7 @@ def page_dashboard(df_all: pd.DataFrame, df_user: pd.DataFrame) -> None:
 
 
 def main_app() -> None:
-    raw_df = get_followup_data_cached()
+    raw_df = get_followup_data()
     df_all = normalize_followup_df(raw_df)
     df_user = df_all[df_all["staff_id"] == safe_text(st.session_state.staff_id)].copy() if not df_all.empty else df_all.copy()
 
