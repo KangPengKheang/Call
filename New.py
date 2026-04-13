@@ -16,7 +16,7 @@ st.set_page_config(
 )
 
 SHEET_ID = "1FeAYu8jgE_R7IWjcDPjhXsmXvpn79GbVAMa_WU0mxQs"
-FOLLOWUP_SHEET_NAME = "FollowUp"
+FOLLOWUP_SHEET_NAME = "testing"
 PASSWORD_SHEET_NAME = "pw"
 STAFF_SHEET_NAME = "call_users"
 LOGO_PATH = "Logo-CMCB.png"
