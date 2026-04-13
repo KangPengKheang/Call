@@ -895,7 +895,7 @@ def render_header(df_user: pd.DataFrame) -> None:
     with left:
         st.markdown(
             f"""
-            <div style='font-size:34px;font-weight:900;letter-spacing:-0.03em;color:#0f172a;'>Customer Call Activity</div>
+            <div style='font-size:34px;font-weight:900;letter-spacing:-0.03em;color:#0f172a;'>CUSTOMER CALL ACTIVITY</div>
             <div style='margin-top:8px;font-size:14px;color:#6b7280;'>
                 Logged in as <b>{safe_text(st.session_state.caller_name)}</b> ({safe_text(st.session_state.staff_id)}).<br>
                 Cambodia time now: <b>{now_ts().strftime("%d %b %Y %H:%M:%S")}</b>
