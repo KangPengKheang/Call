@@ -1,28 +1,13 @@
 import uuid
-import gspread
-import pandas as pd
-import plotly.express as px
-import streamlit as st
 from datetime import date, datetime, timedelta
-from google.oauth2.service_account import Credentials
-from gspread.exceptions import WorksheetNotFound
+import os
 import re
 
-# =========================================================
-# CONFIG
-# =========================================================
-st.set_page_config(
-    page_title="Call Activity Tracking System",
-    page_icon="📞",
-    layout="wide",
-)
+import pandas as pd
+import streamlit as st
 
-SHEET_ID = "1FeAYu8jgE_R7IWjcDPjhXsmXvpn79GbVAMa_WU0mxQs"  # <-- replace with your real Google Sheet ID
-LOGIN_SHEET = "pw"
-CALL_LOG_SHEET = "CallLog"
-ADMIN_IDS = {"90020759"}
+st.set_page_config(page_title="Call Activity Tracking System", page_icon="📞", layout="wide")
 
-CALLBACK_STATUSES = {"Not Pick Up", "No Answer", "Busy"}
 PURPOSE_OPTIONS = [
     "Welcome Call",
     "Follow Up",
@@ -32,6 +17,7 @@ PURPOSE_OPTIONS = [
     "Service Check",
     "Other",
 ]
+
 STATUS_OPTIONS = [
     "Pick Up",
     "Not Pick Up",
@@ -42,829 +28,709 @@ STATUS_OPTIONS = [
     "Completed",
 ]
 
-CALL_LOG_HEADERS = [
-    "call_id",
-    "call_datetime",
-    "staff_id",
-    "caller_name",
-    "phone_number",
-    "customer_name",
-    "call_purpose",
-    "call_status",
-    "remark",
-    "callback_date",
-    "queue_status",
-    "created_at",
-    "updated_at",
+CALLBACK_STATUSES = {"Not Pick Up", "No Answer", "Busy"}
+
+DEMO_USERS = [
+    {"user_id": "90020759", "password": "123456", "name": "Demo User", "role": "Sales Executive"},
+    {"user_id": "10010203", "password": "123456", "name": "Rina", "role": "Sales Executive"},
+    {"user_id": "10010204", "password": "123456", "name": "Dara", "role": "Sales Executive"},
 ]
 
 
-# =========================================================
-# STYLE
-# =========================================================
-st.markdown(
-    """
-    <style>
-        .stApp {
-            background: #f7faf8;
-        }
-        .block-card {
-            background: white;
-            border: 1px solid #e5e7eb;
-            border-radius: 16px;
-            padding: 16px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.04);
-        }
-        .metric-box {
-            background: white;
-            border: 1px solid #dbe7df;
-            border-left: 5px solid #0f8f4a;
-            border-radius: 14px;
-            padding: 14px 16px;
-            box-shadow: 0 4px 16px rgba(0,0,0,0.04);
-        }
-        .metric-title {
-            color: #166534;
-            font-size: 14px;
-            font-weight: 600;
-        }
-        .metric-value {
-            color: #0f172a;
-            font-size: 28px;
-            font-weight: 800;
-            margin-top: 4px;
-        }
-        .small-muted {
-            color: #6b7280;
-            font-size: 12px;
-        }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+def make_id() -> str:
+    return uuid.uuid4().hex[:10].upper()
 
 
-# =========================================================
-# HELPERS
-# =========================================================
-def now_str() -> str:
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+def today_str() -> str:
+    return date.today().strftime("%Y-%m-%d")
 
 
-def empty_calllog_df() -> pd.DataFrame:
-    return pd.DataFrame(columns=[c.lower() for c in CALL_LOG_HEADERS])
+def plus_days(days: int) -> str:
+    return (date.today() + timedelta(days=days)).strftime("%Y-%m-%d")
 
 
-def metric_card(title: str, value: str, subtitle: str = "") -> None:
-    st.markdown(
-        f"""
-        <div class="metric-box">
-            <div class="metric-title">{title}</div>
-            <div class="metric-value">{value}</div>
-            <div class="small-muted">{subtitle}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+def fmt_datetime(value: str) -> str:
+    try:
+        return pd.to_datetime(value).strftime("%d %b %Y %H:%M")
+    except Exception:
+        return str(value)
 
 
-def clean_phone_number(phone: str) -> str:
-    if not phone:
-        return ""
+def clean_phone(phone: str) -> str:
     phone = str(phone).strip()
-    phone = re.sub(r"[()\s-]", "", phone)
+    phone = re.sub(r"[^0-9+]", "", phone)
     phone = re.sub(r"^\+?855", "0", phone)
     phone = re.sub(r"^855", "0", phone)
     if phone and not phone.startswith("0"):
-        phone = "0" + phone
-    return phone.strip()
+        phone = f"0{phone}"
+    return phone
 
 
-def init_session_state() -> None:
-    defaults = {
-        "logged_in": False,
-        "staff_id": "",
-        "caller_name": "",
-        "form_phone": "",
-        "form_name": "",
-        "form_purpose": "Welcome Call",
-        "form_other_purpose": "",
-        "form_status": "Pick Up",
-        "form_remark": "",
-        "form_callback_date": date.today() + timedelta(days=1),
-    }
-    for key, value in defaults.items():
-        if key not in st.session_state:
-            st.session_state[key] = value
+def seed_logs():
+    return [
+        {
+            "call_id": make_id(),
+            "call_datetime": (datetime.now() - timedelta(hours=2)).isoformat(),
+            "staff_id": "90020759",
+            "caller_name": "Demo User",
+            "phone_number": "012345678",
+            "customer_name": "Sok Vanna",
+            "call_purpose": "Promotion",
+            "call_status": "Pick Up",
+            "remark": "Customer answered and listened to promotion.",
+            "callback_date": "",
+            "queue_status": "Closed",
+        },
+        {
+            "call_id": make_id(),
+            "call_datetime": (datetime.now() - timedelta(hours=26)).isoformat(),
+            "staff_id": "90020759",
+            "caller_name": "Demo User",
+            "phone_number": "098888222",
+            "customer_name": "Chan Dara",
+            "call_purpose": "Reminder",
+            "call_status": "Not Pick Up",
+            "remark": "No answer on first try.",
+            "callback_date": today_str(),
+            "queue_status": "Pending Callback",
+        },
+        {
+            "call_id": make_id(),
+            "call_datetime": (datetime.now() - timedelta(hours=49)).isoformat(),
+            "staff_id": "10010203",
+            "caller_name": "Rina",
+            "phone_number": "011222333",
+            "customer_name": "Pich Sreypov",
+            "call_purpose": "Survey",
+            "call_status": "Busy",
+            "remark": "Asked us to call back tomorrow.",
+            "callback_date": plus_days(1),
+            "queue_status": "Pending Callback",
+        },
+        {
+            "call_id": make_id(),
+            "call_datetime": (datetime.now() - timedelta(hours=5)).isoformat(),
+            "staff_id": "10010204",
+            "caller_name": "Dara",
+            "phone_number": "097777111",
+            "customer_name": "Mey Linda",
+            "call_purpose": "Welcome Call",
+            "call_status": "No Answer",
+            "remark": "Need to try again in the afternoon.",
+            "callback_date": plus_days(1),
+            "queue_status": "Pending Callback",
+        },
+    ]
 
 
-def reset_new_call_form() -> None:
+def init_state() -> None:
+    if "logged_user" not in st.session_state:
+        st.session_state.logged_user = None
+    if "call_logs" not in st.session_state:
+        st.session_state.call_logs = seed_logs()
+    if "login_user_id" not in st.session_state:
+        st.session_state.login_user_id = "90020759"
+    if "login_password" not in st.session_state:
+        st.session_state.login_password = "123456"
+    if "queue_filter" not in st.session_state:
+        st.session_state.queue_filter = "All Pending"
+    if "dashboard_scope" not in st.session_state:
+        st.session_state.dashboard_scope = "My Calls"
+    if "history_search" not in st.session_state:
+        st.session_state.history_search = ""
+    if "history_status" not in st.session_state:
+        st.session_state.history_status = "All"
+    if "history_purpose" not in st.session_state:
+        st.session_state.history_purpose = "All"
+    if "form_phone" not in st.session_state:
+        reset_form()
+
+
+def reset_form() -> None:
     st.session_state.form_phone = ""
     st.session_state.form_name = ""
     st.session_state.form_purpose = "Welcome Call"
     st.session_state.form_other_purpose = ""
     st.session_state.form_status = "Pick Up"
+    st.session_state.form_callback_date = plus_days(1)
     st.session_state.form_remark = ""
-    st.session_state.form_callback_date = date.today() + timedelta(days=1)
 
 
-# =========================================================
-# GOOGLE SHEETS
-# =========================================================
-def setup_gsheets():
-    try:
-        scopes = ["https://www.googleapis.com/auth/spreadsheets"]
-        creds_dict = dict(st.secrets["gcp_service_account"])
-        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
-        return gspread.authorize(creds)
-    except Exception as e:
-        st.error(f"❌ Google Sheets connection failed: {e}")
-        return None
-
-
-def ensure_call_log_sheet(client):
-    try:
-        sheet = client.open_by_key(SHEET_ID)
-        try:
-            ws = sheet.worksheet(CALL_LOG_SHEET)
-        except WorksheetNotFound:
-            ws = sheet.add_worksheet(
-                title=CALL_LOG_SHEET,
-                rows=5000,
-                cols=max(len(CALL_LOG_HEADERS) + 5, 20),
-            )
-            ws.append_row(CALL_LOG_HEADERS)
-            return ws
-
-        current_values = ws.get_all_values()
-        if not current_values:
-            ws.append_row(CALL_LOG_HEADERS)
-        return ws
-    except Exception as e:
-        st.error(f"❌ Failed to open or create CallLog sheet: {e}")
-        raise
-
-
-@st.cache_data(ttl=120)
-def load_call_logs() -> pd.DataFrame:
-    try:
-        client = setup_gsheets()
-        if not client:
-            return empty_calllog_df()
-
-        ws = ensure_call_log_sheet(client)
-        records = ws.get_all_records()
-        if not records:
-            return empty_calllog_df()
-
-        df = pd.DataFrame(records)
-        df.columns = [str(c).strip().lower() for c in df.columns]
-
-        for col in ["call_datetime", "callback_date", "created_at", "updated_at"]:
-            if col in df.columns:
-                df[col] = pd.to_datetime(df[col], errors="coerce")
-
-        for col in ["staff_id", "caller_name", "phone_number", "customer_name", "call_purpose", "call_status", "remark", "queue_status"]:
-            if col in df.columns:
-                df[col] = df[col].astype(str).fillna("").str.strip()
-            else:
-                df[col] = ""
-
-        return df
-    except Exception as e:
-        st.error(f"❌ Failed to load call logs: {e}")
-        return empty_calllog_df()
-
-
-def append_call_log(record: dict) -> bool:
-    try:
-        client = setup_gsheets()
-        if not client:
-            return False
-
-        ws = ensure_call_log_sheet(client)
-        row = [record.get(col, "") for col in CALL_LOG_HEADERS]
-        ws.append_row(row, value_input_option="USER_ENTERED")
-        return True
-    except Exception as e:
-        st.error(f"❌ Failed to save call log: {e}")
-        return False
-
-
-def update_call_log_by_id(call_id: str, updates: dict) -> bool:
-    try:
-        client = setup_gsheets()
-        if not client:
-            return False
-
-        ws = ensure_call_log_sheet(client)
-        all_values = ws.get_all_values()
-        if not all_values:
-            return False
-
-        headers = [str(h).strip().lower() for h in all_values[0]]
-        if "call_id" not in headers:
-            st.error("❌ Column 'call_id' not found in CallLog sheet")
-            return False
-
-        call_id_idx = headers.index("call_id")
-        target_row = None
-        for row_num, row in enumerate(all_values[1:], start=2):
-            if call_id_idx < len(row) and str(row[call_id_idx]).strip() == str(call_id).strip():
-                target_row = row_num
-                break
-
-        if not target_row:
-            st.error("❌ Call record not found")
-            return False
-
-        for field, value in updates.items():
-            field = str(field).strip().lower()
-            if field in headers:
-                ws.update_cell(target_row, headers.index(field) + 1, str(value))
-
-        return True
-    except Exception as e:
-        st.error(f"❌ Failed to update call log: {e}")
-        return False
-
-
-# =========================================================
-# AUTH
-# =========================================================
-def authenticate_user(staff_id: str, password: str):
-    try:
-        client = setup_gsheets()
-        if not client:
-            return False, None
-
-        sheet = client.open_by_key(SHEET_ID)
-        ws = sheet.worksheet(LOGIN_SHEET)
-        records = ws.get_all_records()
-
-        for record in records:
-            record = {str(k).strip().lower(): record[k] for k in record.keys()}
-            row_staff = str(record.get("staff_id", "")).strip()
-            row_password = str(record.get("password", "")).strip()
-            row_status = str(record.get("status", "active")).strip().lower()
-
-            if row_staff == str(staff_id).strip():
-                if row_status != "active":
-                    st.error("❌ Account is not active")
-                    return False, None
-
-                if row_password == str(password).strip():
-                    caller_name = (
-                        str(record.get("caller_name", "")).strip()
-                        or str(record.get("name", "")).strip()
-                        or str(record.get("full_name", "")).strip()
-                        or str(record.get("username", "")).strip()
-                        or row_staff
-                    )
-                    return True, {"staff_id": row_staff, "caller_name": caller_name}
-
-                st.error("❌ Invalid password")
-                return False, None
-
-        st.error("❌ Staff ID not found")
-        return False, None
-    except Exception as e:
-        st.error(f"❌ Authentication failed: {e}")
-        return False, None
-
-
-def logout() -> None:
-    st.session_state.logged_in = False
-    st.session_state.staff_id = ""
-    st.session_state.caller_name = ""
-    reset_new_call_form()
-    st.rerun()
-
-
-# =========================================================
-# LOGIN PAGE
-# =========================================================
-def login_page() -> None:
-    st.markdown(
-        """
-        <div class="block-card" style="max-width: 480px; margin: 40px auto;">
-            <h2 style="margin:0; color:#166534;">📞 Call Activity Tracking System</h2>
-            <p style="color:#6b7280; margin-top:8px;">
-                Login with your Staff ID to record calls and manage unpicked-up customers.
-            </p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    with st.form("login_form"):
-        staff_id = st.text_input("Staff ID")
-        password = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Login", use_container_width=True)
-
-        if submitted:
-            ok, profile = authenticate_user(staff_id, password)
-            if ok and profile:
-                st.session_state.logged_in = True
-                st.session_state.staff_id = profile["staff_id"]
-                st.session_state.caller_name = profile["caller_name"]
-                st.success("✅ Login successful")
-                st.rerun()
-
-
-# =========================================================
-# PAGES
-# =========================================================
-def page_new_call(df_scope: pd.DataFrame) -> None:
-    st.subheader("📞 New Call Log")
-
-    today_mask = pd.Series(dtype=bool)
-    if not df_scope.empty and "call_datetime" in df_scope.columns:
-        today_mask = df_scope["call_datetime"].dt.date == date.today()
-
-    total_today = int(today_mask.sum()) if len(today_mask) else 0
-    picked_today = int((df_scope.loc[today_mask, "call_status"] == "Pick Up").sum()) if len(today_mask) else 0
-    pending_callbacks = int((df_scope["queue_status"] == "Pending Callback").sum()) if not df_scope.empty else 0
-
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        metric_card("Today Calls", str(total_today), "Logged by you today")
-    with c2:
-        metric_card("Today Pick Up", str(picked_today), "Successful pick-up calls")
-    with c3:
-        metric_card("Pending Callbacks", str(pending_callbacks), "Need to call again")
-
-    st.markdown("---")
-
-    with st.form("new_call_form", clear_on_submit=False):
-        col1, col2 = st.columns(2)
-        with col1:
-            phone = st.text_input("Phone Number *", key="form_phone", placeholder="e.g. 012345678")
-            customer_name = st.text_input("Full Name *", key="form_name", placeholder="Customer name")
-            purpose = st.selectbox("Call Purpose *", PURPOSE_OPTIONS, key="form_purpose")
-            if purpose == "Other":
-                other_purpose = st.text_input("Specify Call Purpose *", key="form_other_purpose")
-            else:
-                other_purpose = ""
-
-        with col2:
-            status = st.selectbox("Call Status *", STATUS_OPTIONS, key="form_status")
-            if status in CALLBACK_STATUSES:
-                callback_date = st.date_input(
-                    "Callback Date *",
-                    key="form_callback_date",
-                    min_value=date.today(),
-                )
-            else:
-                callback_date = None
-
-        remark = st.text_area(
-            "Remark",
-            key="form_remark",
-            height=140,
-            placeholder="Example: Customer was busy, asked to call tomorrow morning.",
+def get_df() -> pd.DataFrame:
+    df = pd.DataFrame(st.session_state.call_logs)
+    if df.empty:
+        return pd.DataFrame(
+            columns=[
+                "call_id",
+                "call_datetime",
+                "staff_id",
+                "caller_name",
+                "phone_number",
+                "customer_name",
+                "call_purpose",
+                "call_status",
+                "remark",
+                "callback_date",
+                "queue_status",
+            ]
         )
-
-        save_col1, save_col2 = st.columns(2)
-        save_clicked = save_col1.form_submit_button("💾 Save")
-        save_new_clicked = save_col2.form_submit_button("💾 Save & New")
-
-        if save_clicked or save_new_clicked:
-            phone_clean = clean_phone_number(phone)
-            purpose_final = other_purpose.strip() if purpose == "Other" else purpose
-
-            if not phone_clean:
-                st.error("❌ Phone Number is required")
-                return
-            if not customer_name.strip():
-                st.error("❌ Full Name is required")
-                return
-            if not purpose_final:
-                st.error("❌ Call Purpose is required")
-                return
-            if status in CALLBACK_STATUSES and callback_date is None:
-                st.error("❌ Callback Date is required for unpicked-up customers")
-                return
-
-            timestamp = now_str()
-            record = {
-                "call_id": uuid.uuid4().hex[:12].upper(),
-                "call_datetime": timestamp,
-                "staff_id": st.session_state.staff_id,
-                "caller_name": st.session_state.caller_name,
-                "phone_number": phone_clean,
-                "customer_name": customer_name.strip(),
-                "call_purpose": purpose_final,
-                "call_status": status,
-                "remark": remark.strip(),
-                "callback_date": callback_date.strftime("%Y-%m-%d") if callback_date else "",
-                "queue_status": "Pending Callback" if status in CALLBACK_STATUSES else "Closed",
-                "created_at": timestamp,
-                "updated_at": timestamp,
-            }
-
-            if append_call_log(record):
-                st.cache_data.clear()
-                st.success("✅ Call log saved successfully")
-                if save_new_clicked:
-                    reset_new_call_form()
-                    st.rerun()
-
-    st.markdown("---")
-    st.markdown("#### Recent Calls")
-    recent = df_scope.sort_values("call_datetime", ascending=False).head(10).copy() if not df_scope.empty else empty_calllog_df()
-    if recent.empty:
-        st.info("No calls logged yet.")
-    else:
-        show_cols = [
-            "call_datetime",
-            "phone_number",
-            "customer_name",
-            "call_purpose",
-            "call_status",
-            "queue_status",
-            "remark",
-        ]
-        recent = recent[[c for c in show_cols if c in recent.columns]].copy()
-        if "call_datetime" in recent.columns:
-            recent["call_datetime"] = recent["call_datetime"].dt.strftime("%Y-%m-%d %H:%M:%S")
-        st.dataframe(recent, use_container_width=True, hide_index=True)
+    return df
 
 
-def page_unpicked_queue(df_scope: pd.DataFrame) -> None:
-    st.subheader("📋 Unpicked Up Queue")
-    st.caption("Customers with status Not Pick Up / No Answer / Busy appear here for later callback.")
-
-    if df_scope.empty:
-        st.info("No queue records found.")
-        return
-
-    queue_df = df_scope[df_scope["queue_status"].fillna("") == "Pending Callback"].copy()
-
-    if queue_df.empty:
-        st.success("🎉 No pending callbacks.")
-        return
-
-    view_filter = st.radio("View", ["All Pending", "Overdue", "Due Today", "Upcoming"], horizontal=True)
-    today = pd.Timestamp(date.today())
-
-    if "callback_date" in queue_df.columns:
-        if view_filter == "Overdue":
-            queue_df = queue_df[queue_df["callback_date"].dt.date < today.date()]
-        elif view_filter == "Due Today":
-            queue_df = queue_df[queue_df["callback_date"].dt.date == today.date()]
-        elif view_filter == "Upcoming":
-            queue_df = queue_df[queue_df["callback_date"].dt.date > today.date()]
-
-    queue_df = queue_df.sort_values(["callback_date", "call_datetime"], ascending=[True, False], na_position="last")
-
-    if queue_df.empty:
-        st.info("No records found for this filter.")
-        return
-
-    st.info(f"Pending callbacks: {len(queue_df)}")
-
-    for _, row in queue_df.iterrows():
-        call_id = row.get("call_id", "")
-        customer_name = row.get("customer_name", "Unknown")
-        phone_number = row.get("phone_number", "")
-        purpose = row.get("call_purpose", "")
-        call_status = row.get("call_status", "")
-        callback_date = row.get("callback_date")
-        last_call = row.get("call_datetime")
-
-        callback_label = callback_date.strftime("%Y-%m-%d") if pd.notna(callback_date) else "No date"
-        last_call_label = last_call.strftime("%Y-%m-%d %H:%M") if pd.notna(last_call) else "No date"
-
-        with st.expander(f"📞 {customer_name} | {phone_number} | Callback: {callback_label}"):
-            left, right = st.columns(2)
-            with left:
-                st.write(f"**Customer Name:** {customer_name}")
-                st.write(f"**Phone Number:** {phone_number}")
-                st.write(f"**Call Purpose:** {purpose}")
-            with right:
-                st.write(f"**Previous Status:** {call_status}")
-                st.write(f"**Last Call:** {last_call_label}")
-                st.write(f"**Current Queue:** Pending Callback")
-
-            old_remark = row.get("remark", "")
-            if str(old_remark).strip():
-                st.write("**Previous Remark:**")
-                st.info(str(old_remark))
-
-            st.markdown("---")
-            st.markdown("#### Log Callback Result")
-
-            with st.form(key=f"callback_form_{call_id}"):
-                new_status = st.selectbox(
-                    "Callback Status",
-                    STATUS_OPTIONS,
-                    index=0,
-                    key=f"callback_status_{call_id}",
-                )
-                new_remark = st.text_area(
-                    "New Remark",
-                    key=f"callback_remark_{call_id}",
-                    placeholder="Write the result of this callback...",
-                )
-
-                if new_status in CALLBACK_STATUSES:
-                    next_callback = st.date_input(
-                        "Next Callback Date",
-                        key=f"next_callback_{call_id}",
-                        min_value=date.today(),
-                        value=date.today() + timedelta(days=1),
-                    )
-                else:
-                    next_callback = None
-
-                b1, b2 = st.columns(2)
-                save_callback = b1.form_submit_button("💾 Save Callback Result")
-                close_only = b2.form_submit_button("✅ Close Without New Callback")
-
-                if save_callback:
-                    timestamp = now_str()
-                    new_record = {
-                        "call_id": uuid.uuid4().hex[:12].upper(),
-                        "call_datetime": timestamp,
-                        "staff_id": st.session_state.staff_id,
-                        "caller_name": st.session_state.caller_name,
-                        "phone_number": phone_number,
-                        "customer_name": customer_name,
-                        "call_purpose": purpose,
-                        "call_status": new_status,
-                        "remark": new_remark.strip(),
-                        "callback_date": next_callback.strftime("%Y-%m-%d") if next_callback else "",
-                        "queue_status": "Pending Callback" if new_status in CALLBACK_STATUSES else "Closed",
-                        "created_at": timestamp,
-                        "updated_at": timestamp,
-                    }
-
-                    ok1 = append_call_log(new_record)
-                    ok2 = update_call_log_by_id(call_id, {"queue_status": "Completed", "updated_at": timestamp})
-                    if ok1 and ok2:
-                        st.cache_data.clear()
-                        st.success("✅ Callback result saved")
-                        st.rerun()
-
-                if close_only:
-                    ok = update_call_log_by_id(
-                        call_id,
-                        {"queue_status": "Completed", "updated_at": now_str()},
-                    )
-                    if ok:
-                        st.cache_data.clear()
-                        st.success("✅ Queue item closed")
-                        st.rerun()
+def get_user_df() -> pd.DataFrame:
+    df = get_df()
+    user = st.session_state.logged_user
+    if not user:
+        return df.iloc[0:0]
+    return df[df["staff_id"].astype(str).str.strip() == str(user["user_id"]).strip()].copy()
 
 
-def page_history(df_scope: pd.DataFrame) -> None:
-    st.subheader("📜 Call History")
-
-    if df_scope.empty:
-        st.info("No call history found.")
-        return
-
-    hist = df_scope.copy()
-
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        search_text = st.text_input("Search Name / Phone")
-    with col2:
-        start_date = st.date_input("From", value=date.today() - timedelta(days=7))
-    with col3:
-        end_date = st.date_input("To", value=date.today())
-    with col4:
-        status_filter = st.multiselect(
-            "Status",
-            options=sorted(hist["call_status"].dropna().astype(str).unique().tolist()),
-        )
-
-    purpose_filter = st.multiselect(
-        "Call Purpose",
-        options=sorted(hist["call_purpose"].dropna().astype(str).unique().tolist()),
-    )
-
-    if "call_datetime" in hist.columns:
-        hist = hist[
-            (hist["call_datetime"].dt.date >= start_date)
-            & (hist["call_datetime"].dt.date <= end_date)
-        ]
-
-    if search_text.strip():
-        q = search_text.strip().lower()
-        hist = hist[
-            hist["customer_name"].str.lower().str.contains(q, na=False)
-            | hist["phone_number"].str.lower().str.contains(q, na=False)
-        ]
-
-    if status_filter:
-        hist = hist[hist["call_status"].isin(status_filter)]
-
-    if purpose_filter:
-        hist = hist[hist["call_purpose"].isin(purpose_filter)]
-
-    hist = hist.sort_values("call_datetime", ascending=False)
-
-    if hist.empty:
-        st.info("No records found for the selected filters.")
-        return
-
-    display = hist[[
-        "call_datetime",
-        "staff_id",
-        "caller_name",
-        "phone_number",
-        "customer_name",
-        "call_purpose",
-        "call_status",
-        "queue_status",
-        "remark",
-    ]].copy()
-
-    display = display.rename(
-        columns={
-            "call_datetime": "Call DateTime",
-            "staff_id": "Staff ID",
-            "caller_name": "Caller Name",
-            "phone_number": "Phone Number",
-            "customer_name": "Customer Name",
-            "call_purpose": "Call Purpose",
-            "call_status": "Call Status",
-            "queue_status": "Queue Status",
-            "remark": "Remark",
-        }
-    )
-
-    if "Call DateTime" in display.columns:
-        display["Call DateTime"] = pd.to_datetime(display["Call DateTime"], errors="coerce").dt.strftime("%Y-%m-%d %H:%M:%S")
-
-    st.dataframe(display, use_container_width=True, hide_index=True, height=520)
+def add_log(record: dict) -> None:
+    st.session_state.call_logs = [record] + st.session_state.call_logs
 
 
-def page_dashboard(df_all: pd.DataFrame, df_user: pd.DataFrame) -> None:
-    st.subheader("📊 Dashboard")
-
-    is_admin = st.session_state.staff_id in ADMIN_IDS
-    if is_admin:
-        view = st.radio("Dashboard Scope", ["My Calls", "All Calls"], horizontal=True)
-        df_scope = df_all.copy() if view == "All Calls" else df_user.copy()
-    else:
-        df_scope = df_user.copy()
-
-    if df_scope.empty:
-        st.info("No data available for dashboard.")
-        return
-
-    total_calls = len(df_scope)
-    picked_up = int((df_scope["call_status"] == "Pick Up").sum())
-    pending_callbacks = int((df_scope["queue_status"] == "Pending Callback").sum())
-    today_calls = int((df_scope["call_datetime"].dt.date == date.today()).sum())
-
-    a, b, c, d = st.columns(4)
-    with a:
-        metric_card("Total Calls", f"{total_calls:,}", "All logged calls")
-    with b:
-        metric_card("Pick Up", f"{picked_up:,}", "Successful answered calls")
-    with c:
-        metric_card("Pending Callbacks", f"{pending_callbacks:,}", "Need to call again")
-    with d:
-        metric_card("Today Calls", f"{today_calls:,}", "Calls logged today")
-
-    st.markdown("---")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-        status_counts = (
-            df_scope["call_status"]
-            .fillna("Unknown")
-            .value_counts()
-            .reset_index()
-        )
-        status_counts.columns = ["Call Status", "Count"]
-        fig_status = px.bar(
-            status_counts,
-            x="Call Status",
-            y="Count",
-            text="Count",
-            title="Call Status Breakdown",
-            color="Call Status",
-        )
-        fig_status.update_traces(textposition="outside")
-        fig_status.update_layout(showlegend=False)
-        st.plotly_chart(fig_status, use_container_width=True)
-
-    with col2:
-        purpose_counts = (
-            df_scope["call_purpose"]
-            .fillna("Unknown")
-            .value_counts()
-            .reset_index()
-        )
-        purpose_counts.columns = ["Call Purpose", "Count"]
-        fig_purpose = px.pie(
-            purpose_counts,
-            names="Call Purpose",
-            values="Count",
-            hole=0.45,
-            title="Call Purpose Distribution",
-        )
-        st.plotly_chart(fig_purpose, use_container_width=True)
-
-    st.markdown("---")
-
-    trend_df = df_scope.copy()
-    trend_df["call_day"] = trend_df["call_datetime"].dt.date
-    trend = trend_df.groupby("call_day", as_index=False).size()
-    trend.columns = ["Call Day", "Count"]
-    fig_trend = px.line(trend, x="Call Day", y="Count", markers=True, title="Daily Call Trend")
-    st.plotly_chart(fig_trend, use_container_width=True)
-
-    if is_admin and len(df_scope) > 0 and "All Calls" in locals().get("view", ""):
-        pass
-
-    if is_admin and not df_all.empty:
-        staff_counts = (
-            df_all.groupby(["staff_id", "caller_name"], as_index=False)
-            .size()
-            .sort_values("size", ascending=False)
-        )
-        staff_counts.columns = ["Staff ID", "Caller Name", "Count"]
-        if not staff_counts.empty:
-            fig_staff = px.bar(
-                staff_counts,
-                x="Staff ID",
-                y="Count",
-                hover_data=["Caller Name"],
-                text="Count",
-                title="Calls by Staff",
-            )
-            fig_staff.update_traces(textposition="outside")
-            st.plotly_chart(fig_staff, use_container_width=True)
+def update_queue_item(call_id: str, new_queue_status: str) -> None:
+    updated = []
+    for row in st.session_state.call_logs:
+        if row["call_id"] == call_id:
+            row = {**row, "queue_status": new_queue_status}
+        updated.append(row)
+    st.session_state.call_logs = updated
 
 
-# =========================================================
-# MAIN APP
-# =========================================================
-def main_app() -> None:
+def metric_box(title: str, value: str, subtitle: str) -> None:
     st.markdown(
         f"""
-        <div class="block-card">
-            <h2 style="margin:0; color:#166534;">📞 Call Activity Tracking System</h2>
-            <p style="margin:8px 0 0 0; color:#4b5563;">
-                Logged in as <b>{st.session_state.caller_name}</b> ({st.session_state.staff_id})
-            </p>
+        <div class="metric-box">
+            <div class="metric-title">{title}</div>
+            <div class="metric-value">{value}</div>
+            <div class="metric-sub">{subtitle}</div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    st.sidebar.title("Navigation")
-    st.sidebar.write(f"**Staff ID:** {st.session_state.staff_id}")
-    st.sidebar.write(f"**Caller:** {st.session_state.caller_name}")
 
-    if st.sidebar.button("🔄 Refresh Data", use_container_width=True):
-        st.cache_data.clear()
+def status_chip(value: str) -> str:
+    palette = {
+        "Pick Up": ("#dcfce7", "#166534"),
+        "Not Pick Up": ("#fef3c7", "#92400e"),
+        "No Answer": ("#ffedd5", "#9a3412"),
+        "Busy": ("#dbeafe", "#1d4ed8"),
+        "Wrong Number": ("#fee2e2", "#991b1b"),
+        "Rejected": ("#fee2e2", "#991b1b"),
+        "Pending Callback": ("#fef3c7", "#92400e"),
+        "Closed": ("#e5e7eb", "#374151"),
+        "Completed": ("#e5e7eb", "#374151"),
+    }
+    bg, fg = palette.get(value, ("#e5e7eb", "#374151"))
+    return f"<span style='display:inline-block;padding:4px 10px;border-radius:999px;background:{bg};color:{fg};font-size:12px;font-weight:700;'>{value}</span>"
+
+
+def load_css() -> None:
+    st.markdown(
+        """
+        <style>
+        .stApp {
+            background: linear-gradient(135deg, #f8fffb 0%, #f1f7f3 45%, #f8fafc 100%);
+        }
+        .hero-box {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 28px;
+            padding: 24px 28px;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05);
+        }
+        .login-shell {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 32px;
+            padding: 32px;
+            box-shadow: 0 20px 40px rgba(22, 101, 52, 0.08);
+        }
+        .metric-box {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 20px;
+            padding: 16px 18px;
+            box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+        }
+        .metric-title {
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #6b7280;
+        }
+        .metric-value {
+            margin-top: 8px;
+            font-size: 30px;
+            line-height: 1;
+            font-weight: 900;
+            color: #0f172a;
+        }
+        .metric-sub {
+            margin-top: 6px;
+            font-size: 12px;
+            color: #6b7280;
+        }
+        .soft-panel {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 28px;
+            padding: 24px;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+        }
+        .sub-panel {
+            background: #f8fafc;
+            border: 1px solid #e5e7eb;
+            border-radius: 24px;
+            padding: 20px;
+        }
+        .logo-fallback {
+            width: 56px;
+            height: 56px;
+            border-radius: 18px;
+            background: linear-gradient(135deg, #166534 0%, #10b981 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            font-weight: 900;
+        }
+        button[kind="secondaryFormSubmit"] {
+            border-radius: 16px !important;
+        }
+        button[kind="primaryFormSubmit"] {
+            border-radius: 16px !important;
+        }
+        .stButton > button {
+            border-radius: 16px;
+            height: 44px;
+            font-weight: 700;
+        }
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 28px;
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 0;
+            background: transparent;
+        }
+        .stTabs [data-baseweb="tab"] {
+            height: 54px;
+            background: transparent;
+            border: none;
+            color: #374151;
+            font-size: 15px;
+            font-weight: 600;
+            padding-left: 0;
+            padding-right: 0;
+        }
+        .stTabs [aria-selected="true"] {
+            color: #ef4444 !important;
+            border-bottom: 3px solid #ef4444 !important;
+        }
+        div[data-testid="stImage"] img {
+            border-radius: 18px;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_logo() -> None:
+    col1, col2 = st.columns([0.08, 0.92])
+    logo_path = "logo-cmcb.png"
+    with col1:
+        if os.path.exists(logo_path):
+            st.image(logo_path, width=56)
+        else:
+            st.markdown("<div class='logo-fallback'>C</div>", unsafe_allow_html=True)
+    with col2:
+        st.markdown(
+            """
+            <div style='padding-top:4px;'>
+                <div style='font-size:20px;font-weight:900;color:#0f172a;'>Chip Mong Call Platform</div>
+                <div style='font-size:12px;color:#6b7280;'>Sales calling activity interface preview</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+def login_view() -> None:
+    left, right = st.columns([1.15, 0.85], gap="large")
+    with left:
+        st.markdown(
+            """
+            <div style='display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;background:white;border:1px solid #dcfce7;color:#166534;font-size:13px;font-weight:700;'>
+                Modern sales call interface preview
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.write("")
+        render_logo()
+        st.markdown(
+            """
+            <div style='margin-top:18px;font-size:52px;line-height:1.05;font-weight:900;color:#0f172a;max-width:800px;'>
+                A cleaner calling workflow for every salesperson.
+            </div>
+            <div style='margin-top:18px;max-width:720px;font-size:17px;line-height:1.8;color:#475569;'>
+                This Python prototype is designed for your future Streamlit production flow. Login can later connect directly to the sheet that stores user ID and password for each salesperson.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.write("")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            metric_box("Personal Queue", "By Login", "Each salesperson sees only their own callbacks")
+        with c2:
+            metric_box("Call History", "Per Sale", "History is filtered by logged-in account")
+        with c3:
+            metric_box("Dashboard", "Live View", "Can switch between personal and overall view")
+
+    with right:
+        st.markdown("<div class='login-shell'>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size:28px;font-weight:900;color:#0f172a;'>Login</div>", unsafe_allow_html=True)
+        st.markdown("<div style='margin-top:6px;font-size:14px;color:#6b7280;'>Later, this will connect directly to your user_ID and password sheet.</div>", unsafe_allow_html=True)
+        st.write("")
+        with st.form("login_form"):
+            st.text_input("User ID", key="login_user_id")
+            st.text_input("Password", type="password", key="login_password")
+            submitted = st.form_submit_button("Enter Interface", use_container_width=True, type="primary")
+            if submitted:
+                user = next(
+                    (
+                        row
+                        for row in DEMO_USERS
+                        if row["user_id"] == st.session_state.login_user_id.strip()
+                        and row["password"] == st.session_state.login_password
+                    ),
+                    None,
+                )
+                if user:
+                    st.session_state.logged_user = user
+                    st.rerun()
+                else:
+                    st.error("Invalid User ID or password")
+        st.info("Demo users: 90020759 / 123456, 10010203 / 123456, 10010204 / 123456")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+
+def render_header(user_df: pd.DataFrame) -> None:
+    user = st.session_state.logged_user
+    today_calls = len(user_df[user_df["call_datetime"].astype(str).str[:10] == today_str()]) if not user_df.empty else 0
+    picked_up = len(user_df[user_df["call_status"] == "Pick Up"]) if not user_df.empty else 0
+    pending_queue = len(user_df[user_df["queue_status"] == "Pending Callback"]) if not user_df.empty else 0
+
+    st.markdown("<div class='hero-box'>", unsafe_allow_html=True)
+    top_left, top_right = st.columns([0.62, 0.38])
+    with top_left:
+        st.markdown(
+            f"""
+            <div style='font-size:34px;font-weight:900;letter-spacing:-0.03em;color:#0f172a;'>Call Activity Tracking System</div>
+            <div style='margin-top:8px;font-size:14px;color:#6b7280;'>
+                Personal queue and history are filtered by the logged-in salesperson. This matches your future production logic.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with top_right:
+        info1, info2, info3 = st.columns(3)
+        with info1:
+            metric_box("Today Calls", str(today_calls), user["name"])
+        with info2:
+            metric_box("Pick Up", str(picked_up), "Answered calls")
+        with info3:
+            metric_box("Pending Queue", str(pending_queue), "Need callback")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+init_state()
+load_css()
+
+if not st.session_state.logged_user:
+    login_view()
+    st.stop()
+
+user = st.session_state.logged_user
+all_df = get_df()
+user_df = get_user_df()
+
+render_header(user_df)
+
+nav1, nav2, nav3 = st.columns([0.78, 0.11, 0.11])
+with nav2:
+    if st.button("Reset Demo", use_container_width=True):
+        st.session_state.call_logs = seed_logs()
+        reset_form()
+        st.rerun()
+with nav3:
+    if st.button("Logout", use_container_width=True):
+        st.session_state.logged_user = None
         st.rerun()
 
-    if st.sidebar.button("🚪 Logout", use_container_width=True):
-        logout()
+call_tab, queue_tab, history_tab, dashboard_tab = st.tabs(
+    ["📞 New Call Log", "🗂️ Unpicked Up Queue", "🕘 Call History", "📊 Dashboard"]
+)
 
-    page = st.sidebar.radio(
-        "Go to",
-        ["📞 New Call Log", "📋 Unpicked Up Queue", "📜 Call History", "📊 Dashboard"],
+with call_tab:
+    st.markdown("<div class='soft-panel'>", unsafe_allow_html=True)
+    head1, head2 = st.columns([0.75, 0.25])
+    with head1:
+        st.markdown("<div style='font-size:28px;font-weight:900;color:#0f172a;'>New Call Log</div>", unsafe_allow_html=True)
+        st.markdown("<div style='margin-top:4px;font-size:14px;color:#6b7280;'>This keeps the clean call logging flow you approved.</div>", unsafe_allow_html=True)
+    with head2:
+        st.markdown(
+            f"<div style='margin-top:6px;text-align:right;'><span style='display:inline-block;background:#166534;color:white;padding:8px 14px;border-radius:999px;font-size:13px;font-weight:700;'>{user['name']}</span></div>",
+            unsafe_allow_html=True,
+        )
+
+    st.write("")
+    left, right = st.columns(2, gap="large")
+    with left:
+        st.markdown("<div class='sub-panel'>", unsafe_allow_html=True)
+        st.text_input("Phone Number", key="form_phone", placeholder="012345678")
+        st.text_input("Full Name", key="form_name", placeholder="Customer full name")
+        st.selectbox("Call Purpose", PURPOSE_OPTIONS, key="form_purpose")
+        if st.session_state.form_purpose == "Other":
+            st.text_input("Specify Purpose", key="form_other_purpose")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with right:
+        st.markdown("<div class='sub-panel'>", unsafe_allow_html=True)
+        st.selectbox("Call Status", STATUS_OPTIONS, key="form_status")
+        if st.session_state.form_status in CALLBACK_STATUSES:
+            st.text_input("Callback Date", key="form_callback_date")
+        st.text_area("Remark", key="form_remark", height=220, placeholder="Write what happened after the call...")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("Save", use_container_width=True, type="primary"):
+            phone = clean_phone(st.session_state.form_phone)
+            purpose = st.session_state.form_other_purpose.strip() if st.session_state.form_purpose == "Other" else st.session_state.form_purpose
+            if not phone or not st.session_state.form_name.strip() or not purpose:
+                st.error("Please complete Phone Number, Full Name, and Call Purpose")
+            else:
+                add_log(
+                    {
+                        "call_id": make_id(),
+                        "call_datetime": datetime.now().isoformat(),
+                        "staff_id": user["user_id"],
+                        "caller_name": user["name"],
+                        "phone_number": phone,
+                        "customer_name": st.session_state.form_name.strip(),
+                        "call_purpose": purpose,
+                        "call_status": st.session_state.form_status,
+                        "remark": st.session_state.form_remark.strip(),
+                        "callback_date": st.session_state.form_callback_date if st.session_state.form_status in CALLBACK_STATUSES else "",
+                        "queue_status": "Pending Callback" if st.session_state.form_status in CALLBACK_STATUSES else "Closed",
+                    }
+                )
+                st.success("Saved successfully")
+                st.rerun()
+    with c2:
+        if st.button("Save & New", use_container_width=True):
+            phone = clean_phone(st.session_state.form_phone)
+            purpose = st.session_state.form_other_purpose.strip() if st.session_state.form_purpose == "Other" else st.session_state.form_purpose
+            if not phone or not st.session_state.form_name.strip() or not purpose:
+                st.error("Please complete Phone Number, Full Name, and Call Purpose")
+            else:
+                add_log(
+                    {
+                        "call_id": make_id(),
+                        "call_datetime": datetime.now().isoformat(),
+                        "staff_id": user["user_id"],
+                        "caller_name": user["name"],
+                        "phone_number": phone,
+                        "customer_name": st.session_state.form_name.strip(),
+                        "call_purpose": purpose,
+                        "call_status": st.session_state.form_status,
+                        "remark": st.session_state.form_remark.strip(),
+                        "callback_date": st.session_state.form_callback_date if st.session_state.form_status in CALLBACK_STATUSES else "",
+                        "queue_status": "Pending Callback" if st.session_state.form_status in CALLBACK_STATUSES else "Closed",
+                    }
+                )
+                reset_form()
+                st.success("Saved successfully")
+                st.rerun()
+
+    st.write("")
+    recent = user_df.sort_values("call_datetime", ascending=False).head(8).copy() if not user_df.empty else user_df.copy()
+    if not recent.empty:
+        recent = recent[["call_datetime", "phone_number", "customer_name", "call_purpose", "call_status", "queue_status"]].copy()
+        recent["call_datetime"] = recent["call_datetime"].apply(fmt_datetime)
+        st.markdown("<div style='font-size:22px;font-weight:900;color:#0f172a;margin:8px 0 12px 0;'>Recent Calls</div>", unsafe_allow_html=True)
+        st.dataframe(recent, use_container_width=True, hide_index=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+with queue_tab:
+    st.markdown("<div class='soft-panel'>", unsafe_allow_html=True)
+    top_left, top_right = st.columns([0.72, 0.28])
+    with top_left:
+        st.markdown("<div style='font-size:28px;font-weight:900;color:#0f172a;'>Unpicked Up Queue</div>", unsafe_allow_html=True)
+        st.markdown(
+            f"<div style='margin-top:4px;font-size:14px;color:#6b7280;'>This queue is personal. Only {user['name']}'s unpicked-up customers appear after login, so the same salesperson can call them again later.</div>",
+            unsafe_allow_html=True,
+        )
+    with top_right:
+        st.selectbox("Queue Filter", ["All Pending", "Overdue", "Due Today", "Upcoming"], key="queue_filter")
+
+    queue_df = user_df[user_df["queue_status"] == "Pending Callback"].copy() if not user_df.empty else user_df.copy()
+    if st.session_state.queue_filter == "Overdue":
+        queue_df = queue_df[queue_df["callback_date"].astype(str) < today_str()]
+    elif st.session_state.queue_filter == "Due Today":
+        queue_df = queue_df[queue_df["callback_date"].astype(str) == today_str()]
+    elif st.session_state.queue_filter == "Upcoming":
+        queue_df = queue_df[queue_df["callback_date"].astype(str) > today_str()]
+
+    st.markdown(
+        f"<div style='margin:12px 0 18px 0;display:inline-block;background:#ecfdf5;color:#166534;padding:10px 16px;border-radius:16px;font-size:13px;font-weight:700;border:1px solid #bbf7d0;'>{len(queue_df)} customer(s) in {user['name']}'s queue</div>",
+        unsafe_allow_html=True,
     )
 
-    df_all = load_call_logs()
-    if df_all.empty:
-        df_all = empty_calllog_df()
+    if queue_df.empty:
+        st.info("No pending callbacks in this view.")
+    else:
+        for _, row in queue_df.iterrows():
+            with st.expander(f"📞 {row['customer_name']} | {row['phone_number']} | Callback: {row['callback_date'] or '-'}", expanded=False):
+                a1, a2, a3, a4 = st.columns(4)
+                with a1:
+                    st.markdown("**Phone**")
+                    st.write(row["phone_number"])
+                with a2:
+                    st.markdown("**Purpose**")
+                    st.write(row["call_purpose"])
+                with a3:
+                    st.markdown("**Previous Status**")
+                    st.markdown(status_chip(row["call_status"]), unsafe_allow_html=True)
+                with a4:
+                    st.markdown("**Last Call**")
+                    st.write(fmt_datetime(row["call_datetime"]))
 
-    if "staff_id" in df_all.columns:
-        df_all["staff_id"] = df_all["staff_id"].astype(str).str.strip()
+                if row["remark"]:
+                    st.markdown(
+                        f"<div style='margin-top:10px;background:#ecfdf5;border:1px solid #bbf7d0;border-radius:18px;padding:14px;color:#334155;font-size:14px;'>{row['remark']}</div>",
+                        unsafe_allow_html=True,
+                    )
 
-    df_user = (
-        df_all[df_all["staff_id"] == str(st.session_state.staff_id).strip()].copy()
-        if not df_all.empty and "staff_id" in df_all.columns
-        else empty_calllog_df()
-    )
+                st.write("")
+                form_col1, form_col2 = st.columns([0.5, 0.5])
+                callback_status = form_col1.selectbox(
+                    "Callback Status",
+                    STATUS_OPTIONS,
+                    key=f"queue_status_{row['call_id']}",
+                )
+                next_callback = form_col2.text_input(
+                    "Next Callback Date",
+                    value=plus_days(1),
+                    key=f"queue_date_{row['call_id']}",
+                )
+                callback_remark = st.text_area(
+                    "New Remark",
+                    key=f"queue_remark_{row['call_id']}",
+                    height=120,
+                )
+                q1, q2 = st.columns(2)
+                with q1:
+                    if st.button("Save Result", key=f"save_{row['call_id']}", use_container_width=True, type="primary"):
+                        add_log(
+                            {
+                                "call_id": make_id(),
+                                "call_datetime": datetime.now().isoformat(),
+                                "staff_id": user["user_id"],
+                                "caller_name": user["name"],
+                                "phone_number": row["phone_number"],
+                                "customer_name": row["customer_name"],
+                                "call_purpose": row["call_purpose"],
+                                "call_status": callback_status,
+                                "remark": callback_remark.strip(),
+                                "callback_date": next_callback if callback_status in CALLBACK_STATUSES else "",
+                                "queue_status": "Pending Callback" if callback_status in CALLBACK_STATUSES else "Closed",
+                            }
+                        )
+                        update_queue_item(row["call_id"], "Completed")
+                        st.success("Callback result saved")
+                        st.rerun()
+                with q2:
+                    if st.button("Close Item", key=f"close_{row['call_id']}", use_container_width=True):
+                        update_queue_item(row["call_id"], "Completed")
+                        st.success("Queue item closed")
+                        st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
-    if page == "📞 New Call Log":
-        page_new_call(df_user)
-    elif page == "📋 Unpicked Up Queue":
-        page_unpicked_queue(df_user)
-    elif page == "📜 Call History":
-        page_history(df_user)
-    elif page == "📊 Dashboard":
-        page_dashboard(df_all, df_user)
+with history_tab:
+    st.markdown("<div class='soft-panel'>", unsafe_allow_html=True)
+    st.markdown("<div style='font-size:28px;font-weight:900;color:#0f172a;'>Call History</div>", unsafe_allow_html=True)
+    st.write("")
+    h1, h2, h3 = st.columns([1.2, 0.5, 0.5])
+    with h1:
+        st.text_input("Search Name / Phone", key="history_search")
+    with h2:
+        st.selectbox("Call Status", ["All"] + STATUS_OPTIONS, key="history_status")
+    with h3:
+        st.selectbox("Call Purpose", ["All"] + PURPOSE_OPTIONS, key="history_purpose")
 
+    history_df = user_df.copy()
+    if st.session_state.history_search.strip():
+        q = st.session_state.history_search.strip().lower()
+        history_df = history_df[
+            history_df["customer_name"].astype(str).str.lower().str.contains(q)
+            | history_df["phone_number"].astype(str).str.lower().str.contains(q)
+        ]
+    if st.session_state.history_status != "All":
+        history_df = history_df[history_df["call_status"] == st.session_state.history_status]
+    if st.session_state.history_purpose != "All":
+        history_df = history_df[history_df["call_purpose"] == st.session_state.history_purpose]
 
-# =========================================================
-# RUN
-# =========================================================
-init_session_state()
+    history_df = history_df.sort_values("call_datetime", ascending=False)
+    if history_df.empty:
+        st.info("No history found.")
+    else:
+        view = history_df[["call_datetime", "phone_number", "customer_name", "call_purpose", "call_status", "queue_status", "remark"]].copy()
+        view["call_datetime"] = view["call_datetime"].apply(fmt_datetime)
+        st.dataframe(view, use_container_width=True, hide_index=True, height=520)
+    st.markdown("</div>", unsafe_allow_html=True)
 
-if not st.session_state.logged_in:
-    login_page()
-else:
-    main_app()
+with dashboard_tab:
+    st.markdown("<div class='soft-panel'>", unsafe_allow_html=True)
+    d1, d2 = st.columns([0.72, 0.28])
+    with d1:
+        st.markdown("<div style='font-size:28px;font-weight:900;color:#0f172a;'>Dashboard</div>", unsafe_allow_html=True)
+        st.markdown("<div style='margin-top:4px;font-size:14px;color:#6b7280;'>Monitor personal performance or switch to overall demo data.</div>", unsafe_allow_html=True)
+    with d2:
+        st.selectbox("Dashboard Scope", ["My Calls", "All Demo Data"], key="dashboard_scope")
+
+    scope_df = user_df.copy() if st.session_state.dashboard_scope == "My Calls" else all_df.copy()
+    if scope_df.empty:
+        st.info("No data available.")
+    else:
+        s1, s2, s3, s4 = st.columns(4)
+        with s1:
+            metric_box("Total Calls", str(len(scope_df)), "Prototype records")
+        with s2:
+            metric_box("Pick Up", str(len(scope_df[scope_df["call_status"] == "Pick Up"])), "Answered calls")
+        with s3:
+            metric_box("Pending Callback", str(len(scope_df[scope_df["queue_status"] == "Pending Callback"])), "Need another try")
+        with s4:
+            metric_box("Today Calls", str(len(scope_df[scope_df["call_datetime"].astype(str).str[:10] == today_str()])), "Calls today")
+
+        st.write("")
+        chart1, chart2 = st.columns(2, gap="large")
+        with chart1:
+            status_df = scope_df.groupby("call_status", as_index=False).size().rename(columns={"size": "count"})
+            st.bar_chart(status_df.set_index("call_status"))
+        with chart2:
+            purpose_df = scope_df.groupby("call_purpose", as_index=False).size().rename(columns={"size": "count"})
+            st.bar_chart(purpose_df.set_index("call_purpose"))
+
+        trend_df = scope_df.copy()
+        trend_df["call_day"] = trend_df["call_datetime"].astype(str).str[:10]
+        trend_df = trend_df.groupby("call_day", as_index=False).size().rename(columns={"size": "count"})
+        st.write("")
+        st.line_chart(trend_df.set_index("call_day"))
+    st.markdown("</div>", unsafe_allow_html=True)
