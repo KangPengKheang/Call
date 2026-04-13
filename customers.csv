@@ -1,0 +1,6 @@
+id,name,business,phone,email,potential,status,last_contact,call_count,rm_code
+1,Sok Dara,Sok Dara Grocery,010 123 456,sokdara@email.com,H,New Lead,2023-01-15,0,001
+2,Lim Srey,Srey Fashion,011 234 567,limsrey@email.com,M,Pending,2023-02-20,2,001
+3,Chen Lao,Lao Construction,012 345 678,chenlao@email.com,L,Completed,2023-03-10,1,001
+4,Heng Thong,Thong Electronics,013 456 789,hengthong@email.com,H,Missed,2023-03-05,3,002
+5,Khim Sopheak,Sopheak Restaurant,014 567 890,khimsopheak@email.com,M,New Lead,2023-03-12,0,002

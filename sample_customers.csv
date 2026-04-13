@@ -1,0 +1,21 @@
+id,name,business,phone,potential,last_contact,status
+1,Bopha Phal,Clothing Shop,0199 881 317,L,2025-09-08,Completed
+2,Chan Oeurn,Coffee Shop,0150 693 175,L,2025-09-05,Completed
+3,Bopha Chen,Coffee Shop,0148 901 713,H,2025-09-12,Completed
+4,Bopha Tan,Phone Repair,0170 761 854,M,2025-09-10,Pending
+5,Srey Kim,Phone Repair,0107 651 139,M,2025-09-17,Pending
+6,Dara Heng,Motorcycle Repair,0114 302 810,M,2025-08-22,Pending
+7,Sok Heng,Phone Repair,0120 858 147,L,2025-08-26,Pending
+8,Khem Mom,Construction Supplies,0189 259 149,M,2025-09-10,Missed
+9,Sothy Heng,Electronics Store,0156 367 304,H,2025-08-21,Pending
+10,Vannak Oeurn,Grocery Store,0187 628 809,M,2025-09-13,Missed
+11,Ratha Nguyen,Clothing Shop,0169 703 834,M,2025-08-23,Completed
+12,Bopha Phal,Motorcycle Repair,0169 837 516,H,2025-09-17,Completed
+13,Ratha Lim,Grocery Store,0134 737 456,H,2025-09-10,Pending
+14,Sophea Ly,Restaurant,0142 953 749,H,2025-09-10,Pending
+15,Vannak Oeurn,Phone Repair,0172 185 622,M,2025-09-10,Completed
+16,Ratha Phal,Fruit Vendor,0136 789 895,L,2025-08-19,Missed
+17,Srey Chen,Grocery Store,0192 241 773,M,2025-09-12,Pending
+18,Sothy Heng,Beauty Salon,0126 714 793,M,2025-08-26,Pending
+19,Sophea Tan,Grocery Store,0100 203 211,H,2025-08-25,Pending
+20,Khem Chen,Clothing Shop,0141 644 951,M,2025-09-12,Pending
