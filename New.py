@@ -30,13 +30,10 @@ LOGO_PATH = "Logo-CMCB.png"
 CAMBODIA_TZ = ZoneInfo("Asia/Phnom_Penh")
 
 PURPOSE_OPTIONS = [
-    "Welcome Call",
-    "Follow Up",
-    "Promotion",
-    "Reminder",
-    "Survey",
-    "Service Check",
-    "Other",
+    "New Fee Charge",
+    "Deliver Card/QR",
+    "Inactive Card/Merchant",
+    "Annual Fee",
 ]
 
 STATUS_OPTIONS = [
