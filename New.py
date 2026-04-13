@@ -763,8 +763,7 @@ def render_logo() -> None:
         st.markdown(
             """
             <div style='padding-top:4px;'>
-                <div style='font-size:20px;font-weight:900;color:#0f172a;'>Chip Mong Call Platform</div>
-                <div style='font-size:12px;color:#6b7280;'>Sales calling activity system</div>
+                <div style='font-size:20px;font-weight:900;color:#0f172a;'>Chip Mong Bank</div>
             </div>
             """,
             unsafe_allow_html=True,
