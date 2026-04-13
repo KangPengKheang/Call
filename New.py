@@ -929,13 +929,6 @@ def page_new_call(df_user: pd.DataFrame, df_all: pd.DataFrame) -> None:
 
     top1, top2 = st.columns([0.75, 0.25])
 
-    with top1:
-        st.markdown("<div style='font-size:28px;font-weight:900;color:#0f172a;'>New Call Log</div>", unsafe_allow_html=True)
-        st.markdown(
-            "<div style='margin-top:4px;font-size:14px;color:#6b7280;'>Saved columns: call_id, call_datetime, customer_name, customer_phone, staff_id, caller_name, call_status, call_purpose, remark.</div>",
-            unsafe_allow_html=True,
-        )
-
     with top2:
         st.markdown(
             f"<div style='margin-top:6px;text-align:right;'><span style='display:inline-block;background:#166534;color:white;padding:8px 14px;border-radius:999px;font-size:13px;font-weight:700;'>{safe_text(st.session_state.caller_name)}</span></div>",
