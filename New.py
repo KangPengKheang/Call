@@ -738,15 +738,7 @@ def login_page() -> None:
         st.markdown(
             """
             <div style='margin-top:18px;font-size:52px;line-height:1.05;font-weight:900;color:#0f172a;max-width:780px;'>
-                A cleaner calling workflow for every salesperson.
-            </div>
-            <div style='margin-top:18px;max-width:720px;font-size:17px;line-height:1.8;color:#475569;'>
-                Login comes from your Google Sheet account table, and all unpicked-up customers stay tied to the logged-in salesperson.
-            </div>
-            <div class='mini-stat-row'>
-                <div class='mini-stat'>Personal queue by login</div>
-                <div class='mini-stat'>Call history by salesperson</div>
-                <div class='mini-stat'>Dashboard by role</div>
+                SALE CALL MANAGEMENT SYSTEM
             </div>
             """,
             unsafe_allow_html=True,
