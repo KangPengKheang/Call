@@ -1100,7 +1100,7 @@ def login_page() -> None:
             with st.form("login_form"):
                 staff_id = st.text_input("Staff ID")
                 password = st.text_input("Password", type="password")
-                login_submitted = st.form_submit_button("Enter Interface", use_container_width=True, type="primary")
+                login_submitted = st.form_submit_button("Enter", use_container_width=True, type="primary")
 
                 if login_submitted:
                     with st.spinner("Authenticating..."):
