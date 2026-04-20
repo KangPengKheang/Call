@@ -350,7 +350,7 @@ st.markdown(
         /* Refresh button - light green */
         div[data-testid="stVerticalBlock"]:has(#refresh-btn-anchor) div[data-testid="stButton"] > button {
             background: linear-gradient(180deg, #dcfce7 0%, #bbf7d0 100%) !important;
-            color: #166534 !important;
+            color: #7FFFD4 !important;
             border: 1px solid #86efac !important;
             box-shadow: 0 10px 22px rgba(34, 197, 94, 0.16) !important;
         }
