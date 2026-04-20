@@ -1,3 +1,4 @@
+
 import base64
 import hashlib
 import os
@@ -1160,7 +1161,7 @@ def login_page() -> None:
     with right:
         st.markdown("<div style='font-size:28px;font-weight:900;color:#0f172a;margin-top:20px;'>Access</div>", unsafe_allow_html=True)
         st.markdown(
-            "<div class='auth-note'><b>Login<b> or <b>create a new account<b>. Click the <b>Register<b> panel for <b>Registration<b>.</div>",
+            "<div class='auth-note'>Login to continue your work, or <b>create a new account</b> to get started. Click the <b>Register</b> panel to complete your <b>registration</b>.</div>",
             unsafe_allow_html=True,
         )
         st.write("")
