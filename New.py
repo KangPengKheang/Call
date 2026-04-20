@@ -1241,7 +1241,7 @@ def render_header(df_user: pd.DataFrame) -> None:
                 st.rerun()
         with c2:
             st.markdown('<div id="logout-btn-anchor"></div>', unsafe_allow_html=True)
-            if st.button("Logout", use_container_width=True, type="primary"):
+            if st.button("Logout", use_container_width=True):
                 st.session_state.logged_in = False
                 st.session_state.staff_id = ""
                 st.session_state.caller_name = ""
