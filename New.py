@@ -156,29 +156,21 @@ st.markdown(
         }
 
         .stButton > button {
-            border-radius: 18px;
-            height: 52px;
-            font-weight: 800;
-            font-size: 17px;
-            letter-spacing: 0.01em;
+            border-radius: 16px;
+            height: 46px;
+            font-weight: 700;
             border: 1px solid #d1d5db;
-            box-shadow: 0 8px 20px rgba(15, 23, 42, 0.06);
-            transition: all 0.18s ease;
-        }
-
-        .stButton > button:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 10px 22px rgba(15, 23, 42, 0.10);
+            box-shadow: none;
         }
 
         .stButton > button[kind="primary"] {
-            background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
+            background: #ef4444;
             color: white;
-            border: 1px solid #dc2626;
+            border: none;
         }
 
         .stButton > button[kind="primary"]:hover {
-            background: linear-gradient(180deg, #dc2626 0%, #b91c1c 100%);
+            background: #dc2626;
             color: white;
         }
 
@@ -347,94 +339,33 @@ st.markdown(
             line-height: 1.7;
         }
 
-        /* Refresh button - very simple */
-        div[data-testid="stVerticalBlock"]:has(#refresh-btn-anchor) div[data-testid="stButton"] > button {
-            background: #ffffff !important;
-            color: #475569 !important;
-            border: 1px solid #dbe2ea !important;
-            box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04) !important;
-            font-weight: 700 !important;
-        }
-
-        div[data-testid="stVerticalBlock"]:has(#refresh-btn-anchor) div[data-testid="stButton"] > button:hover {
-            background: #f8fafc !important;
-            color: #334155 !important;
-            border: 1px solid #cbd5e1 !important;
-        }
-
-        /* Logout button - very simple */
-        div[data-testid="stVerticalBlock"]:has(#logout-btn-anchor) div[data-testid="stButton"] > button {
-            background: #ffffff !important;
-            color: #b91c1c !important;
-            border: 1px solid #fecaca !important;
-            box-shadow: 0 4px 12px rgba(239, 68, 68, 0.05) !important;
-            font-weight: 700 !important;
-        }
-
-        div[data-testid="stVerticalBlock"]:has(#logout-btn-anchor) div[data-testid="stButton"] > button:hover {
-            background: #fff5f5 !important;
+        div[data-testid="stVerticalBlock"]:has(#save-btn-anchor) div[data-testid="stButton"] > button {
+            background: #fecaca !important;
             color: #991b1b !important;
             border: 1px solid #fca5a5 !important;
         }
 
-        /* Save button - strong main action */
-        div[data-testid="stVerticalBlock"]:has(#save-btn-anchor) div[data-testid="stButton"] > button {
-            background: linear-gradient(180deg, #166534 0%, #15803d 100%) !important;
-            color: #ffffff !important;
-            border: 1px solid #166534 !important;
-            box-shadow: 0 12px 24px rgba(22, 101, 52, 0.22) !important;
-            font-weight: 900 !important;
-            letter-spacing: 0.02em !important;
-        }
-
         div[data-testid="stVerticalBlock"]:has(#save-btn-anchor) div[data-testid="stButton"] > button:hover {
-            background: linear-gradient(180deg, #15803d 0%, #166534 100%) !important;
-            color: #ffffff !important;
-            border: 1px solid #14532d !important;
+            background: #fca5a5 !important;
+            color: #7f1d1d !important;
         }
 
-        /* Save & New button - strong secondary action */
         div[data-testid="stVerticalBlock"]:has(#save-new-btn-anchor) div[data-testid="stButton"] > button {
-            background: linear-gradient(180deg, #059669 0%, #10b981 100%) !important;
-            color: #ffffff !important;
-            border: 1px solid #059669 !important;
-            box-shadow: 0 12px 24px rgba(5, 150, 105, 0.22) !important;
-            font-weight: 900 !important;
-            letter-spacing: 0.02em !important;
+            background: #dcfce7 !important;
+            color: #166534 !important;
+            border: 1px solid #86efac !important;
         }
 
         div[data-testid="stVerticalBlock"]:has(#save-new-btn-anchor) div[data-testid="stButton"] > button:hover {
-            background: linear-gradient(180deg, #047857 0%, #059669 100%) !important;
-            color: #ffffff !important;
-            border: 1px solid #047857 !important;
+            background: #bbf7d0 !important;
+            color: #14532d !important;
         }
 
-        /* Disabled Save buttons */
         div[data-testid="stVerticalBlock"]:has(#save-btn-anchor) div[data-testid="stButton"] > button:disabled,
         div[data-testid="stVerticalBlock"]:has(#save-new-btn-anchor) div[data-testid="stButton"] > button:disabled {
-            background: linear-gradient(180deg, #ecfdf5 0%, #d1fae5 100%) !important;
-            color: #6b7280 !important;
-            border: 1px solid #bbf7d0 !important;
-            box-shadow: none !important;
-            opacity: 1 !important;
-            font-weight: 800 !important;
-        }
-
-        /* Table header more visible */
-        div[data-testid="stDataFrame"] [role="columnheader"] {
-            background: linear-gradient(180deg, #166534 0%, #14532d 100%) !important;
-            border-right: 1px solid #d1fae5 !important;
-            border-bottom: 1px solid #14532d !important;
-        }
-
-        div[data-testid="stDataFrame"] [role="columnheader"] * {
-            color: #ffffff !important;
-            font-weight: 800 !important;
-            font-size: 15px !important;
-        }
-
-        div[data-testid="stDataFrame"] [role="gridcell"] {
-            font-size: 14px !important;
+            background: #f8fafc !important;
+            color: #9ca3af !important;
+            border: 1px solid #d1d5db !important;
         }
 
         @keyframes spinGear {
@@ -537,22 +468,6 @@ def style_status_dataframe(df: pd.DataFrame, status_col: str = "Status"):
             "border": "none",
             "font-size": "13px",
         })
-
-        styled = styled.set_table_styles(
-            [
-                {
-                    "selector": "th",
-                    "props": [
-                        ("background-color", "#166534"),
-                        ("color", "white"),
-                        ("font-weight", "800"),
-                        ("font-size", "14px"),
-                        ("border", "1px solid #14532d"),
-                    ],
-                }
-            ],
-            overwrite=False,
-        )
 
         if hasattr(styled, "map"):
             styled = styled.map(_style_status, subset=[status_col])
@@ -1174,7 +1089,7 @@ def login_page() -> None:
     with right:
         st.markdown("<div style='font-size:28px;font-weight:900;color:#0f172a;margin-top:20px;'>Access</div>", unsafe_allow_html=True)
         st.markdown(
-            "<div class='auth-note'>Login to continue your work, or <b>create a new account</b> to get started. Click the <b>Register</b> panel to complete your <b>registration</b>.</div>",
+            "<div class='auth-note'>Login or create a new account. Registration will save to the <b>pw</b> sheet.</div>",
             unsafe_allow_html=True,
         )
         st.write("")
@@ -1185,7 +1100,7 @@ def login_page() -> None:
             with st.form("login_form"):
                 staff_id = st.text_input("Staff ID")
                 password = st.text_input("Password", type="password")
-                login_submitted = st.form_submit_button("Enter", use_container_width=True, type="primary")
+                login_submitted = st.form_submit_button("Enter Interface", use_container_width=True, type="primary")
 
                 if login_submitted:
                     with st.spinner("Authenticating..."):
@@ -1244,12 +1159,10 @@ def render_header(df_user: pd.DataFrame) -> None:
     with right:
         c1, c2 = st.columns(2)
         with c1:
-            st.markdown('<div id="refresh-btn-anchor"></div>', unsafe_allow_html=True)
             if st.button("Refresh", use_container_width=True):
                 st.rerun()
         with c2:
-            st.markdown('<div id="logout-btn-anchor"></div>', unsafe_allow_html=True)
-            if st.button("Logout", use_container_width=True):
+            if st.button("Logout", use_container_width=True, type="primary"):
                 st.session_state.logged_in = False
                 st.session_state.staff_id = ""
                 st.session_state.caller_name = ""
