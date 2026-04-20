@@ -158,12 +158,12 @@ st.markdown(
         .stButton > button {
             border-radius: 18px;
             height: 52px;
-            font-weight: 900;
+            font-weight: 800;
             font-size: 18px;
+            letter-spacing: 0.01em;
             border: 1px solid #d1d5db;
             box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
             transition: all 0.18s ease;
-            letter-spacing: 0.01em;
         }
 
         .stButton > button:hover {
@@ -347,69 +347,77 @@ st.markdown(
             line-height: 1.7;
         }
 
-        /* Refresh button - light green */
+        /* Refresh button - soft mint */
         div[data-testid="stVerticalBlock"]:has(#refresh-btn-anchor) div[data-testid="stButton"] > button {
-            background: linear-gradient(180deg, #dcfce7 0%, #bbf7d0 100%) !important;
-            color: #7FFFD4 !important;
+            background: linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%) !important;
+            color: #166534 !important;
             border: 1px solid #86efac !important;
-            box-shadow: 0 10px 22px rgba(34, 197, 94, 0.16) !important;
+            box-shadow: 0 8px 18px rgba(34, 197, 94, 0.10) !important;
+            font-weight: 800 !important;
         }
 
         div[data-testid="stVerticalBlock"]:has(#refresh-btn-anchor) div[data-testid="stButton"] > button:hover {
-            background: linear-gradient(180deg, #bbf7d0 0%, #86efac 100%) !important;
+            background: linear-gradient(180deg, #dcfce7 0%, #bbf7d0 100%) !important;
             color: #14532d !important;
+            border: 1px solid #4ade80 !important;
         }
 
-        /* Logout button - light red */
+        /* Logout button - soft rose */
         div[data-testid="stVerticalBlock"]:has(#logout-btn-anchor) div[data-testid="stButton"] > button {
-            background: linear-gradient(180deg, #fee2e2 0%, #fecaca 100%) !important;
-            color: #b91c1c !important;
-            border: 1px solid #fca5a5 !important;
-            box-shadow: 0 10px 22px rgba(239, 68, 68, 0.14) !important;
+            background: linear-gradient(180deg, #fff1f2 0%, #ffe4e6 100%) !important;
+            color: #be123c !important;
+            border: 1px solid #fda4af !important;
+            box-shadow: 0 8px 18px rgba(244, 63, 94, 0.10) !important;
+            font-weight: 800 !important;
         }
 
         div[data-testid="stVerticalBlock"]:has(#logout-btn-anchor) div[data-testid="stButton"] > button:hover {
-            background: linear-gradient(180deg, #fecaca 0%, #fda4af 100%) !important;
-            color: #991b1b !important;
+            background: linear-gradient(180deg, #ffe4e6 0%, #fecdd3 100%) !important;
+            color: #9f1239 !important;
+            border: 1px solid #fb7185 !important;
         }
 
-        /* Save button - more visible */
+        /* Save button - main action */
         div[data-testid="stVerticalBlock"]:has(#save-btn-anchor) div[data-testid="stButton"] > button {
-            background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%) !important;
+            background: linear-gradient(180deg, #166534 0%, #15803d 100%) !important;
             color: #ffffff !important;
-            border: 1px solid #16a34a !important;
-            box-shadow: 0 10px 22px rgba(22, 163, 74, 0.24) !important;
+            border: 1px solid #166534 !important;
+            box-shadow: 0 10px 22px rgba(22, 101, 52, 0.18) !important;
             font-weight: 900 !important;
+            letter-spacing: 0.01em !important;
         }
 
         div[data-testid="stVerticalBlock"]:has(#save-btn-anchor) div[data-testid="stButton"] > button:hover {
-            background: linear-gradient(180deg, #16a34a 0%, #15803d 100%) !important;
+            background: linear-gradient(180deg, #15803d 0%, #166534 100%) !important;
             color: #ffffff !important;
+            border: 1px solid #14532d !important;
         }
 
-        /* Save & New button - more visible */
+        /* Save & New button - secondary action */
         div[data-testid="stVerticalBlock"]:has(#save-new-btn-anchor) div[data-testid="stButton"] > button {
-            background: linear-gradient(180deg, #4ade80 0%, #22c55e 100%) !important;
+            background: linear-gradient(180deg, #059669 0%, #10b981 100%) !important;
             color: #ffffff !important;
-            border: 1px solid #22c55e !important;
-            box-shadow: 0 10px 22px rgba(34, 197, 94, 0.24) !important;
+            border: 1px solid #059669 !important;
+            box-shadow: 0 10px 22px rgba(5, 150, 105, 0.18) !important;
             font-weight: 900 !important;
+            letter-spacing: 0.01em !important;
         }
 
         div[data-testid="stVerticalBlock"]:has(#save-new-btn-anchor) div[data-testid="stButton"] > button:hover {
-            background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%) !important;
+            background: linear-gradient(180deg, #047857 0%, #059669 100%) !important;
             color: #ffffff !important;
+            border: 1px solid #047857 !important;
         }
 
-        /* Disabled save buttons - still visible */
+        /* Disabled Save buttons */
         div[data-testid="stVerticalBlock"]:has(#save-btn-anchor) div[data-testid="stButton"] > button:disabled,
         div[data-testid="stVerticalBlock"]:has(#save-new-btn-anchor) div[data-testid="stButton"] > button:disabled {
-            background: linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%) !important;
-            color: #6b7280 !important;
-            border: 1px solid #bbf7d0 !important;
+            background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%) !important;
+            color: #94a3b8 !important;
+            border: 1px solid #cbd5e1 !important;
             box-shadow: none !important;
-            font-weight: 800 !important;
             opacity: 1 !important;
+            font-weight: 800 !important;
         }
 
         /* Table header more visible */
