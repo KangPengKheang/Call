@@ -1,4 +1,3 @@
-
 import base64
 import hashlib
 import os
@@ -159,11 +158,12 @@ st.markdown(
         .stButton > button {
             border-radius: 18px;
             height: 52px;
-            font-weight: 800;
+            font-weight: 900;
             font-size: 18px;
             border: 1px solid #d1d5db;
             box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
             transition: all 0.18s ease;
+            letter-spacing: 0.01em;
         }
 
         .stButton > button:hover {
@@ -347,64 +347,69 @@ st.markdown(
             line-height: 1.7;
         }
 
-        /* Refresh button - deeper green */
+        /* Refresh button - light green */
         div[data-testid="stVerticalBlock"]:has(#refresh-btn-anchor) div[data-testid="stButton"] > button {
-            background: linear-gradient(180deg, #166534 0%, #14532d 100%) !important;
-            color: #ffffff !important;
-            border: 1px solid #14532d !important;
-            box-shadow: 0 10px 22px rgba(22, 101, 52, 0.28) !important;
+            background: linear-gradient(180deg, #dcfce7 0%, #bbf7d0 100%) !important;
+            color: #166534 !important;
+            border: 1px solid #86efac !important;
+            box-shadow: 0 10px 22px rgba(34, 197, 94, 0.16) !important;
         }
 
         div[data-testid="stVerticalBlock"]:has(#refresh-btn-anchor) div[data-testid="stButton"] > button:hover {
-            background: linear-gradient(180deg, #14532d 0%, #0f3d24 100%) !important;
-            color: #ffffff !important;
+            background: linear-gradient(180deg, #bbf7d0 0%, #86efac 100%) !important;
+            color: #14532d !important;
         }
 
-        /* Logout button - strong red */
+        /* Logout button - light red */
         div[data-testid="stVerticalBlock"]:has(#logout-btn-anchor) div[data-testid="stButton"] > button {
-            background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%) !important;
-            color: #ffffff !important;
-            border: 1px solid #dc2626 !important;
-            box-shadow: 0 10px 22px rgba(220, 38, 38, 0.25) !important;
+            background: linear-gradient(180deg, #fee2e2 0%, #fecaca 100%) !important;
+            color: #b91c1c !important;
+            border: 1px solid #fca5a5 !important;
+            box-shadow: 0 10px 22px rgba(239, 68, 68, 0.14) !important;
         }
 
         div[data-testid="stVerticalBlock"]:has(#logout-btn-anchor) div[data-testid="stButton"] > button:hover {
-            background: linear-gradient(180deg, #dc2626 0%, #b91c1c 100%) !important;
-            color: #ffffff !important;
+            background: linear-gradient(180deg, #fecaca 0%, #fda4af 100%) !important;
+            color: #991b1b !important;
         }
 
-        /* Save button - filled and visible */
+        /* Save button - more visible */
         div[data-testid="stVerticalBlock"]:has(#save-btn-anchor) div[data-testid="stButton"] > button {
-            background: linear-gradient(180deg, #15803d 0%, #166534 100%) !important;
+            background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%) !important;
             color: #ffffff !important;
-            border: 1px solid #166534 !important;
-            box-shadow: 0 10px 22px rgba(22, 101, 52, 0.24) !important;
+            border: 1px solid #16a34a !important;
+            box-shadow: 0 10px 22px rgba(22, 163, 74, 0.24) !important;
+            font-weight: 900 !important;
         }
 
         div[data-testid="stVerticalBlock"]:has(#save-btn-anchor) div[data-testid="stButton"] > button:hover {
-            background: linear-gradient(180deg, #166534 0%, #14532d 100%) !important;
+            background: linear-gradient(180deg, #16a34a 0%, #15803d 100%) !important;
             color: #ffffff !important;
         }
 
-        /* Save & New button - filled and visible */
+        /* Save & New button - more visible */
         div[data-testid="stVerticalBlock"]:has(#save-new-btn-anchor) div[data-testid="stButton"] > button {
-            background: linear-gradient(180deg, #16a34a 0%, #15803d 100%) !important;
+            background: linear-gradient(180deg, #4ade80 0%, #22c55e 100%) !important;
             color: #ffffff !important;
-            border: 1px solid #15803d !important;
-            box-shadow: 0 10px 22px rgba(21, 128, 61, 0.24) !important;
+            border: 1px solid #22c55e !important;
+            box-shadow: 0 10px 22px rgba(34, 197, 94, 0.24) !important;
+            font-weight: 900 !important;
         }
 
         div[data-testid="stVerticalBlock"]:has(#save-new-btn-anchor) div[data-testid="stButton"] > button:hover {
-            background: linear-gradient(180deg, #15803d 0%, #166534 100%) !important;
+            background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%) !important;
             color: #ffffff !important;
         }
 
+        /* Disabled save buttons - still visible */
         div[data-testid="stVerticalBlock"]:has(#save-btn-anchor) div[data-testid="stButton"] > button:disabled,
         div[data-testid="stVerticalBlock"]:has(#save-new-btn-anchor) div[data-testid="stButton"] > button:disabled {
-            background: #f1f5f9 !important;
-            color: #94a3b8 !important;
-            border: 1px solid #d1d5db !important;
+            background: linear-gradient(180deg, #f0fdf4 0%, #dcfce7 100%) !important;
+            color: #6b7280 !important;
+            border: 1px solid #bbf7d0 !important;
             box-shadow: none !important;
+            font-weight: 800 !important;
+            opacity: 1 !important;
         }
 
         /* Table header more visible */
@@ -454,7 +459,7 @@ def clean_phone_number(phone: str) -> str:
         return ""
     phone = str(phone).strip()
     phone = re.sub(r"[^0-9+]", "", phone)
-    phone = re.sub(r"^\\+?855", "0", phone)
+    phone = re.sub(r"^\+?855", "0", phone)
     phone = re.sub(r"^855", "0", phone)
     if phone and not phone.startswith("0"):
         phone = "0" + phone
