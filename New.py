@@ -37,16 +37,14 @@ PURPOSE_OPTIONS = [
 ]
 
 STATUS_OPTIONS = [
-    "Pick Up",
+    "Picked Up",
     "Not Pick Up",
-    "No Answer",
     "Busy",
     "Wrong Number",
     "Rejected",
-    "Completed",
 ]
 
-CALLBACK_STATUSES = {"Not Pick Up", "No Answer", "Busy"}
+CALLBACK_STATUSES = {"Not Pick Up", "Busy", "Wrong Number"}
 
 CALL_LOG_HEADERS = [
     "call_id",
