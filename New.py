@@ -1160,7 +1160,7 @@ def login_page() -> None:
     with right:
         st.markdown("<div style='font-size:28px;font-weight:900;color:#0f172a;margin-top:20px;'>Access</div>", unsafe_allow_html=True)
         st.markdown(
-            "<div class='auth-note'>Login or create a new account. Registration will save to the <b>pw</b> sheet.</div>",
+            "<div class='auth-note'><b>Login<b> or <b>create a new account<b>. Click the <b>Register<b> panel for <b>Registration<b>.</div>",
             unsafe_allow_html=True,
         )
         st.write("")
