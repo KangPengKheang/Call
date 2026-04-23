@@ -29,6 +29,13 @@ LOGO_PATH = "Logo-CMCB.png"
 
 CAMBODIA_TZ = ZoneInfo("Asia/Phnom_Penh")
 
+# Put your hyper user staff IDs here
+HYPER_USER_IDS = {
+    "admin001",
+    "supervisor01",
+    "90020759",
+}
+
 PURPOSE_OPTIONS = [
     "New Fee Charge",
     "Deliver Card/QR",
@@ -36,7 +43,6 @@ PURPOSE_OPTIONS = [
     "Annual Fee",
 ]
 
-# Keep status names consistent everywhere
 STATUS_OPTIONS = [
     "Pick Up",
     "Not Pick Up",
@@ -434,6 +440,22 @@ def hash_password(password: str) -> str:
         100000,
     )
     return f"{salt}${pwdhash.hex()}"
+
+
+def is_hyper_user() -> bool:
+    current_staff_id = safe_text(st.session_state.get("staff_id", "")).strip().lower()
+    hyper_ids = {safe_text(x).strip().lower() for x in HYPER_USER_IDS}
+    return current_staff_id in hyper_ids
+
+
+def get_scope_df(df_all: pd.DataFrame) -> pd.DataFrame:
+    if df_all.empty:
+        return df_all.copy()
+
+    if is_hyper_user():
+        return df_all.copy()
+
+    return df_all[df_all["staff_id"] == safe_text(st.session_state.staff_id)].copy()
 
 
 def get_status_palette(status: str):
@@ -921,11 +943,11 @@ def normalize_call_log_df(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-def get_latest_calls_by_phone(df_user: pd.DataFrame) -> pd.DataFrame:
-    if df_user.empty:
-        return df_user.copy()
+def get_latest_calls_by_phone(df_scope: pd.DataFrame) -> pd.DataFrame:
+    if df_scope.empty:
+        return df_scope.copy()
 
-    temp = df_user.copy()
+    temp = df_scope.copy()
     temp = temp[temp["phone_key"] != ""].copy()
     temp = temp.sort_values("call_datetime", ascending=False, na_position="last")
     temp = temp.drop_duplicates(subset=["phone_key"], keep="first")
@@ -966,7 +988,6 @@ def save_new_call_to_sheet(df_all: pd.DataFrame) -> bool:
 
     phone_clean = clean_phone_number(st.session_state.form_phone)
 
-    # Duplicate blocking removed so callers can follow up the same number many times
     record = {
         "call_id": safe_text(pd.Timestamp.now().strftime("%y%m%d%H%M%S%f"))[-10:],
         "call_datetime": cambodia_now_str(),
@@ -1090,13 +1111,15 @@ def login_page() -> None:
                             st.success("Account created successfully. Please login.")
 
 
-def render_header(df_user: pd.DataFrame) -> None:
+def render_header(df_scope: pd.DataFrame) -> None:
     today_local = now_ts().date()
-    today_calls = len(df_user[df_user["call_datetime"].dt.date == today_local]) if not df_user.empty else 0
-    picked_up = len(df_user[df_user["call_status"] == "Pick Up"]) if not df_user.empty else 0
+    today_calls = len(df_scope[df_scope["call_datetime"].dt.date == today_local]) if not df_scope.empty else 0
+    picked_up = len(df_scope[df_scope["call_status"] == "Pick Up"]) if not df_scope.empty else 0
 
-    latest_calls = get_latest_calls_by_phone(df_user)
+    latest_calls = get_latest_calls_by_phone(df_scope)
     pending_queue = len(latest_calls[latest_calls["call_status"].isin(CALLBACK_STATUSES)]) if not latest_calls.empty else 0
+
+    scope_label = "All Submissions" if is_hyper_user() else "My Submissions"
 
     left, right = st.columns([0.68, 0.32])
 
@@ -1106,12 +1129,14 @@ def render_header(df_user: pd.DataFrame) -> None:
             <div style='font-size:34px;font-weight:900;letter-spacing:-0.03em;color:#0f172a;'>CUSTOMER CALL ACTIVITY</div>
             <div style='margin-top:8px;font-size:14px;color:#6b7280;'>
                 Logged in as <b>{safe_text(st.session_state.caller_name)}</b> ({safe_text(st.session_state.staff_id)}).<br>
+                Data Scope: <b>{scope_label}</b><br>
                 Cambodia time now: <b>{now_ts().strftime("%d %b %Y %H:%M:%S")}</b>
             </div>
             <div class='mini-stat-row'>
                 <div class='mini-stat'>Today Calls: {today_calls}</div>
                 <div class='mini-stat'>Pick Up: {picked_up}</div>
                 <div class='mini-stat'>Need Callback: {pending_queue}</div>
+                <div class='mini-stat'>Scope: {scope_label}</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -1127,12 +1152,15 @@ def render_header(df_user: pd.DataFrame) -> None:
                 st.session_state.logged_in = False
                 st.session_state.staff_id = ""
                 st.session_state.caller_name = ""
+                st.session_state.user_role = "sales executive"
+                st.session_state.branch_name = ""
+                st.session_state.branch_manager = ""
                 st.rerun()
 
     st.markdown("<hr style='margin:18px 0 8px 0;border:0;border-top:1px solid #e5e7eb;'>", unsafe_allow_html=True)
 
 
-def page_new_call(df_user: pd.DataFrame, df_all: pd.DataFrame) -> None:
+def page_new_call(df_scope: pd.DataFrame, df_all: pd.DataFrame) -> None:
     apply_pending_form_reset()
 
     top1, top2 = st.columns([0.62, 0.38])
@@ -1148,11 +1176,12 @@ def page_new_call(df_user: pd.DataFrame, df_all: pd.DataFrame) -> None:
         )
 
     with top2:
+        scope_badge = "HYPER USER" if is_hyper_user() else safe_text(st.session_state.caller_name)
         st.markdown(
             f"""
             <div style='margin-top:6px;text-align:right;'>
                 <span style='display:inline-block;background:#166534;color:white;padding:8px 14px;border-radius:999px;font-size:13px;font-weight:700;'>
-                    {safe_text(st.session_state.caller_name)}
+                    {scope_badge}
                 </span>
             </div>
             """,
@@ -1207,42 +1236,76 @@ def page_new_call(df_user: pd.DataFrame, df_all: pd.DataFrame) -> None:
         unsafe_allow_html=True,
     )
 
-    recent = df_user.sort_values("call_datetime", ascending=False).head(8).copy() if not df_user.empty else df_user.copy()
+    recent = df_scope.sort_values("call_datetime", ascending=False).head(8).copy() if not df_scope.empty else df_scope.copy()
     if recent.empty:
         st.info("No calls yet.")
     else:
-        recent_view = recent[
-            [
-                "call_datetime",
-                "customer_phone",
-                "customer_name",
-                "call_purpose",
-                "call_status",
-                "remark",
-            ]
-        ].copy()
-        recent_view["call_datetime"] = recent_view["call_datetime"].apply(fmt_datetime)
-        recent_view = recent_view.rename(
-            columns={
-                "call_datetime": "Date",
-                "customer_phone": "Phone",
-                "customer_name": "Name",
-                "call_purpose": "Purpose",
-                "call_status": "Status",
-                "remark": "Remark",
-            }
-        )
+        if is_hyper_user():
+            recent_view = recent[
+                [
+                    "call_datetime",
+                    "customer_phone",
+                    "customer_name",
+                    "caller_name",
+                    "staff_id",
+                    "call_purpose",
+                    "call_status",
+                    "remark",
+                ]
+            ].copy()
+            recent_view["call_datetime"] = recent_view["call_datetime"].apply(fmt_datetime)
+            recent_view = recent_view.rename(
+                columns={
+                    "call_datetime": "Date",
+                    "customer_phone": "Phone",
+                    "customer_name": "Name",
+                    "caller_name": "Caller",
+                    "staff_id": "Staff ID",
+                    "call_purpose": "Purpose",
+                    "call_status": "Status",
+                    "remark": "Remark",
+                }
+            )
+        else:
+            recent_view = recent[
+                [
+                    "call_datetime",
+                    "customer_phone",
+                    "customer_name",
+                    "call_purpose",
+                    "call_status",
+                    "remark",
+                ]
+            ].copy()
+            recent_view["call_datetime"] = recent_view["call_datetime"].apply(fmt_datetime)
+            recent_view = recent_view.rename(
+                columns={
+                    "call_datetime": "Date",
+                    "customer_phone": "Phone",
+                    "customer_name": "Name",
+                    "call_purpose": "Purpose",
+                    "call_status": "Status",
+                    "remark": "Remark",
+                }
+            )
+
         st.dataframe(style_status_dataframe(recent_view), use_container_width=True)
 
 
-def page_callback_queue(df_user: pd.DataFrame) -> None:
+def page_callback_queue(df_scope: pd.DataFrame) -> None:
     st.markdown("<div style='font-size:28px;font-weight:900;color:#0f172a;'>Need Callback</div>", unsafe_allow_html=True)
+
+    if is_hyper_user():
+        queue_scope_text = "This list shows the latest customer record per phone number across all submissions. If the latest status is Not Pick Up, Busy, or Wrong Number, it stays here."
+    else:
+        queue_scope_text = f"This list shows the latest customer record per phone number for {safe_text(st.session_state.caller_name)}. If the latest status is Not Pick Up, Busy, or Wrong Number, it stays here."
+
     st.markdown(
-        f"<div style='margin-top:4px;font-size:14px;color:#6b7280;'>This list shows the latest customer record per phone number for {safe_text(st.session_state.caller_name)}. If the latest status is Not Pick Up, Busy, or Wrong Number, it stays here.</div>",
+        f"<div style='margin-top:4px;font-size:14px;color:#6b7280;'>{queue_scope_text}</div>",
         unsafe_allow_html=True,
     )
 
-    latest_calls = get_latest_calls_by_phone(df_user)
+    latest_calls = get_latest_calls_by_phone(df_scope)
     queue_df = latest_calls[latest_calls["call_status"].isin(CALLBACK_STATUSES)].copy() if not latest_calls.empty else latest_calls.copy()
     queue_df = queue_df.sort_values("call_datetime", ascending=False, na_position="last")
 
@@ -1259,23 +1322,46 @@ def page_callback_queue(df_user: pd.DataFrame) -> None:
                 f"📞 {safe_text(row['customer_name'])} | {safe_text(row['customer_phone'])} | Last: {fmt_datetime(row['call_datetime'])}",
                 expanded=False,
             ):
-                a1, a2, a3, a4 = st.columns(4)
+                if is_hyper_user():
+                    a1, a2, a3, a4, a5 = st.columns(5)
 
-                with a1:
-                    st.markdown("**Phone**")
-                    st.write(safe_text(row["customer_phone"]))
+                    with a1:
+                        st.markdown("**Phone**")
+                        st.write(safe_text(row["customer_phone"]))
 
-                with a2:
-                    st.markdown("**Purpose**")
-                    st.write(safe_text(row["call_purpose"]) or "-")
+                    with a2:
+                        st.markdown("**Purpose**")
+                        st.write(safe_text(row["call_purpose"]) or "-")
 
-                with a3:
-                    st.markdown("**Previous Status**")
-                    st.markdown(queue_status_chip(safe_text(row["call_status"])), unsafe_allow_html=True)
+                    with a3:
+                        st.markdown("**Previous Status**")
+                        st.markdown(queue_status_chip(safe_text(row["call_status"])), unsafe_allow_html=True)
 
-                with a4:
-                    st.markdown("**Last Call**")
-                    st.write(fmt_datetime(row["call_datetime"]))
+                    with a4:
+                        st.markdown("**Last Call**")
+                        st.write(fmt_datetime(row["call_datetime"]))
+
+                    with a5:
+                        st.markdown("**Last Caller**")
+                        st.write(safe_text(row["caller_name"]) or safe_text(row["staff_id"]) or "-")
+                else:
+                    a1, a2, a3, a4 = st.columns(4)
+
+                    with a1:
+                        st.markdown("**Phone**")
+                        st.write(safe_text(row["customer_phone"]))
+
+                    with a2:
+                        st.markdown("**Purpose**")
+                        st.write(safe_text(row["call_purpose"]) or "-")
+
+                    with a3:
+                        st.markdown("**Previous Status**")
+                        st.markdown(queue_status_chip(safe_text(row["call_status"])), unsafe_allow_html=True)
+
+                    with a4:
+                        st.markdown("**Last Call**")
+                        st.write(fmt_datetime(row["call_datetime"]))
 
                 if safe_text(row["remark"]):
                     st.markdown(f"<div class='queue-note'>{safe_text(row['remark'])}</div>", unsafe_allow_html=True)
@@ -1290,7 +1376,7 @@ def page_callback_queue(df_user: pd.DataFrame) -> None:
                             st.rerun()
 
 
-def page_history(df_user: pd.DataFrame) -> None:
+def page_history(df_scope: pd.DataFrame) -> None:
     st.markdown("<div style='font-size:28px;font-weight:900;color:#0f172a;'>Call History</div>", unsafe_allow_html=True)
     st.write("")
 
@@ -1302,13 +1388,15 @@ def page_history(df_user: pd.DataFrame) -> None:
     with c3:
         st.selectbox("Call Purpose", ["All"] + PURPOSE_OPTIONS, key="history_purpose")
 
-    history_df = df_user.copy()
+    history_df = df_scope.copy()
 
     if st.session_state.history_search.strip():
         q = st.session_state.history_search.strip().lower()
         history_df = history_df[
             history_df["customer_name"].astype(str).str.lower().str.contains(q, na=False)
             | history_df["customer_phone"].astype(str).str.lower().str.contains(q, na=False)
+            | history_df["caller_name"].astype(str).str.lower().str.contains(q, na=False)
+            | history_df["staff_id"].astype(str).str.lower().str.contains(q, na=False)
         ]
 
     if st.session_state.history_status != "All":
@@ -1322,27 +1410,55 @@ def page_history(df_user: pd.DataFrame) -> None:
     if history_df.empty:
         st.info("No history found.")
     else:
-        view = history_df[
-            [
-                "call_datetime",
-                "customer_phone",
-                "customer_name",
-                "call_purpose",
-                "call_status",
-                "remark",
-            ]
-        ].copy()
-        view["call_datetime"] = view["call_datetime"].apply(fmt_datetime)
-        view = view.rename(
-            columns={
-                "call_datetime": "Date",
-                "customer_phone": "Phone",
-                "customer_name": "Name",
-                "call_purpose": "Purpose",
-                "call_status": "Status",
-                "remark": "Remark",
-            }
-        )
+        if is_hyper_user():
+            view = history_df[
+                [
+                    "call_datetime",
+                    "customer_phone",
+                    "customer_name",
+                    "caller_name",
+                    "staff_id",
+                    "call_purpose",
+                    "call_status",
+                    "remark",
+                ]
+            ].copy()
+            view["call_datetime"] = view["call_datetime"].apply(fmt_datetime)
+            view = view.rename(
+                columns={
+                    "call_datetime": "Date",
+                    "customer_phone": "Phone",
+                    "customer_name": "Name",
+                    "caller_name": "Caller",
+                    "staff_id": "Staff ID",
+                    "call_purpose": "Purpose",
+                    "call_status": "Status",
+                    "remark": "Remark",
+                }
+            )
+        else:
+            view = history_df[
+                [
+                    "call_datetime",
+                    "customer_phone",
+                    "customer_name",
+                    "call_purpose",
+                    "call_status",
+                    "remark",
+                ]
+            ].copy()
+            view["call_datetime"] = view["call_datetime"].apply(fmt_datetime)
+            view = view.rename(
+                columns={
+                    "call_datetime": "Date",
+                    "customer_phone": "Phone",
+                    "customer_name": "Name",
+                    "call_purpose": "Purpose",
+                    "call_status": "Status",
+                    "remark": "Remark",
+                }
+            )
+
         st.dataframe(style_status_dataframe(view), use_container_width=True, height=520)
 
 
@@ -1351,24 +1467,24 @@ def main_app() -> None:
 
     raw_df = get_call_log_data()
     df_all = normalize_call_log_df(raw_df)
-    df_user = df_all[df_all["staff_id"] == safe_text(st.session_state.staff_id)].copy() if not df_all.empty else df_all.copy()
+    df_scope = get_scope_df(df_all)
 
     loading_placeholder.empty()
 
-    render_header(df_user)
+    render_header(df_scope)
 
     new_tab, queue_tab, history_tab = st.tabs(
         ["📞 New Call Log", "🗂️ Need Callback", "🕘 Call History"]
     )
 
     with new_tab:
-        page_new_call(df_user, df_all)
+        page_new_call(df_scope, df_all)
 
     with queue_tab:
-        page_callback_queue(df_user)
+        page_callback_queue(df_scope)
 
     with history_tab:
-        page_history(df_user)
+        page_history(df_scope)
 
 
 # =========================================================
