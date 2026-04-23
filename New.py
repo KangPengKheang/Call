@@ -29,10 +29,8 @@ LOGO_PATH = "Logo-CMCB.png"
 
 CAMBODIA_TZ = ZoneInfo("Asia/Phnom_Penh")
 
-# Put your hyper user staff IDs here
+# Put hyper user staff IDs here
 HYPER_USER_IDS = {
-    "admin001",
-    "supervisor01",
     "90020759",
 }
 
@@ -954,33 +952,6 @@ def get_latest_calls_by_phone(df_scope: pd.DataFrame) -> pd.DataFrame:
     return temp
 
 
-def phone_exists(phone_input: str, df_all: pd.DataFrame) -> bool:
-    phone_clean = clean_phone_number(phone_input)
-    if not phone_clean or len(phone_clean) < 8 or df_all.empty:
-        return False
-    return (df_all["phone_key"] == phone_clean).any()
-
-
-def get_phone_match_info(phone_input: str, df_all: pd.DataFrame):
-    phone_clean = clean_phone_number(phone_input)
-    if not phone_clean or len(phone_clean) < 8 or df_all.empty:
-        return None
-
-    match_df = df_all[df_all["phone_key"] == phone_clean].copy()
-    if match_df.empty:
-        return None
-
-    latest = match_df.sort_values("call_datetime", ascending=False, na_position="last").iloc[0]
-    return {
-        "phone": phone_clean,
-        "count": len(match_df),
-        "last_name": safe_text(latest.get("customer_name")) or "-",
-        "last_status": safe_text(latest.get("call_status")) or "-",
-        "last_time": fmt_datetime(latest.get("call_datetime")),
-        "last_staff": safe_text(latest.get("caller_name")) or safe_text(latest.get("staff_id")) or "-",
-    }
-
-
 def save_new_call_to_sheet(df_all: pd.DataFrame) -> bool:
     worksheet = ensure_call_log_sheet()
     if worksheet is None:
@@ -1119,7 +1090,7 @@ def render_header(df_scope: pd.DataFrame) -> None:
     latest_calls = get_latest_calls_by_phone(df_scope)
     pending_queue = len(latest_calls[latest_calls["call_status"].isin(CALLBACK_STATUSES)]) if not latest_calls.empty else 0
 
-    scope_label = "All Submissions" if is_hyper_user() else "My Submissions"
+    scope_label = "All Calls In Sheet" if is_hyper_user() else "My Calls Only"
 
     left, right = st.columns([0.68, 0.32])
 
@@ -1236,7 +1207,11 @@ def page_new_call(df_scope: pd.DataFrame, df_all: pd.DataFrame) -> None:
         unsafe_allow_html=True,
     )
 
-    recent = df_scope.sort_values("call_datetime", ascending=False).head(8).copy() if not df_scope.empty else df_scope.copy()
+    # Hyper user sees all records in sheet
+    source_df = df_all if is_hyper_user() else df_scope
+
+    recent = source_df.sort_values("call_datetime", ascending=False).head(8).copy() if not source_df.empty else source_df.copy()
+
     if recent.empty:
         st.info("No calls yet.")
     else:
@@ -1296,7 +1271,7 @@ def page_callback_queue(df_scope: pd.DataFrame) -> None:
     st.markdown("<div style='font-size:28px;font-weight:900;color:#0f172a;'>Need Callback</div>", unsafe_allow_html=True)
 
     if is_hyper_user():
-        queue_scope_text = "This list shows the latest customer record per phone number across all submissions. If the latest status is Not Pick Up, Busy, or Wrong Number, it stays here."
+        queue_scope_text = "This list shows the latest customer record per phone number across the whole sheet. If the latest status is Not Pick Up, Busy, or Wrong Number, it stays here."
     else:
         queue_scope_text = f"This list shows the latest customer record per phone number for {safe_text(st.session_state.caller_name)}. If the latest status is Not Pick Up, Busy, or Wrong Number, it stays here."
 
@@ -1392,12 +1367,18 @@ def page_history(df_scope: pd.DataFrame) -> None:
 
     if st.session_state.history_search.strip():
         q = st.session_state.history_search.strip().lower()
-        history_df = history_df[
-            history_df["customer_name"].astype(str).str.lower().str.contains(q, na=False)
-            | history_df["customer_phone"].astype(str).str.lower().str.contains(q, na=False)
-            | history_df["caller_name"].astype(str).str.lower().str.contains(q, na=False)
-            | history_df["staff_id"].astype(str).str.lower().str.contains(q, na=False)
-        ]
+        if is_hyper_user():
+            history_df = history_df[
+                history_df["customer_name"].astype(str).str.lower().str.contains(q, na=False)
+                | history_df["customer_phone"].astype(str).str.lower().str.contains(q, na=False)
+                | history_df["caller_name"].astype(str).str.lower().str.contains(q, na=False)
+                | history_df["staff_id"].astype(str).str.lower().str.contains(q, na=False)
+            ]
+        else:
+            history_df = history_df[
+                history_df["customer_name"].astype(str).str.lower().str.contains(q, na=False)
+                | history_df["customer_phone"].astype(str).str.lower().str.contains(q, na=False)
+            ]
 
     if st.session_state.history_status != "All":
         history_df = history_df[history_df["call_status"] == st.session_state.history_status]
