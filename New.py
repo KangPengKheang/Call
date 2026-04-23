@@ -1030,39 +1030,39 @@ def render_logo() -> None:
         )
 
 
-# def render_phone_existence_notice(phone_input: str, df_all: pd.DataFrame) -> bool:
-#     info = get_phone_match_info(phone_input, df_all)
+def render_phone_existence_notice(phone_input: str, df_all: pd.DataFrame) -> bool:
+    info = get_phone_match_info(phone_input, df_all)
 
-#     if info is None:
-#         phone_clean = clean_phone_number(phone_input)
-#         if not phone_clean or len(phone_clean) < 8:
-#             return False
+    if info is None:
+        phone_clean = clean_phone_number(phone_input)
+        if not phone_clean or len(phone_clean) < 8:
+            return False
 
-#         st.markdown(
-#             """
-#             <div class="phone-check-card phone-check-new">
-#                 <div class="phone-check-title">✨ New phone number</div>
-#                 <div class="phone-check-sub">No call record found yet for this number. You can continue.</div>
-#             </div>
-#             """,
-#             unsafe_allow_html=True,
-#         )
-#         return False
+        st.markdown(
+            """
+            <div class="phone-check-card phone-check-new">
+                <div class="phone-check-title">✨ New phone number</div>
+                <div class="phone-check-sub">No call record found yet for this number. You can continue.</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        return False
 
-#     st.markdown(
-#         f"""
-#         <div class="phone-check-card phone-check-exists">
-#             <div class="phone-check-title">⛔ Phone number already exists</div>
-#             <div class="phone-check-sub">
-#                 <b>{info['phone']}</b> already has <b>{info['count']}</b> call record(s).<br>
-#                 Latest: <b>{info['last_name']}</b> • <b>{info['last_status']}</b> • <b>{info['last_time']}</b> • by <b>{info['last_staff']}</b><br>
-#                 New save is blocked for duplicate phone numbers.
-#             </div>
-#         </div>
-#         """,
-#         unsafe_allow_html=True,
-#     )
-#     return True
+    st.markdown(
+        f"""
+        <div class="phone-check-card phone-check-exists">
+            <div class="phone-check-title">⛔ Phone number already exists</div>
+            <div class="phone-check-sub">
+                <b>{info['phone']}</b> already has <b>{info['count']}</b> call record(s).<br>
+                Latest: <b>{info['last_name']}</b> • <b>{info['last_status']}</b> • <b>{info['last_time']}</b> • by <b>{info['last_staff']}</b><br>
+                New save is blocked for duplicate phone numbers.
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    return True
 
 
 # =========================================================
