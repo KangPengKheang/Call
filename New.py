@@ -36,8 +36,9 @@ PURPOSE_OPTIONS = [
     "Annual Fee",
 ]
 
+# Keep status names consistent everywhere
 STATUS_OPTIONS = [
-    "Picked Up",
+    "Pick Up",
     "Not Pick Up",
     "Busy",
     "Wrong Number",
@@ -439,7 +440,6 @@ def get_status_palette(status: str):
     palette = {
         "Pick Up": ("#dcfce7", "#166534"),
         "Not Pick Up": ("#fee2e2", "#991b1b"),
-        "No Answer": ("#ffedd5", "#9a3412"),
         "Busy": ("#dbeafe", "#1d4ed8"),
         "Wrong Number": ("#fce7f3", "#9d174d"),
         "Rejected": ("#fee2e2", "#991b1b"),
@@ -965,10 +965,8 @@ def save_new_call_to_sheet(df_all: pd.DataFrame) -> bool:
         return False
 
     phone_clean = clean_phone_number(st.session_state.form_phone)
-    if phone_exists(phone_clean, df_all):
-        st.error("Duplicate phone number detected. Save cancelled.")
-        return False
 
+    # Duplicate blocking removed so callers can follow up the same number many times
     record = {
         "call_id": safe_text(pd.Timestamp.now().strftime("%y%m%d%H%M%S%f"))[-10:],
         "call_datetime": cambodia_now_str(),
@@ -1028,41 +1026,6 @@ def render_logo() -> None:
             """,
             unsafe_allow_html=True,
         )
-
-
-def render_phone_existence_notice(phone_input: str, df_all: pd.DataFrame) -> bool:
-    info = get_phone_match_info(phone_input, df_all)
-
-    if info is None:
-        phone_clean = clean_phone_number(phone_input)
-        if not phone_clean or len(phone_clean) < 8:
-            return False
-
-        st.markdown(
-            """
-            <div class="phone-check-card phone-check-new">
-                <div class="phone-check-title">✨ New phone number</div>
-                <div class="phone-check-sub">No call record found yet for this number. You can continue.</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        return False
-
-    st.markdown(
-        f"""
-        <div class="phone-check-card phone-check-exists">
-            <div class="phone-check-title">⛔ Phone number already exists</div>
-            <div class="phone-check-sub">
-                <b>{info['phone']}</b> already has <b>{info['count']}</b> call record(s).<br>
-                Latest: <b>{info['last_name']}</b> • <b>{info['last_status']}</b> • <b>{info['last_time']}</b> • by <b>{info['last_staff']}</b><br>
-                New save is blocked for duplicate phone numbers.
-            </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    return True
 
 
 # =========================================================
@@ -1180,7 +1143,7 @@ def page_new_call(df_user: pd.DataFrame, df_all: pd.DataFrame) -> None:
             unsafe_allow_html=True,
         )
         st.markdown(
-            "<div style='margin-top:4px;font-size:14px;color:#6b7280;'>Duplicate phone numbers cannot be saved.</div>",
+            "<div style='margin-top:4px;font-size:14px;color:#6b7280;'>You can save the same phone number multiple times for follow-up.</div>",
             unsafe_allow_html=True,
         )
 
@@ -1201,7 +1164,6 @@ def page_new_call(df_user: pd.DataFrame, df_all: pd.DataFrame) -> None:
 
     with left:
         st.text_input("Phone Number", key="form_phone", placeholder="012345678")
-        duplicate_found = render_phone_existence_notice(st.session_state.form_phone, df_all)
         st.text_input("Full Name", key="form_name", placeholder="Customer full name")
         st.selectbox("Call Purpose", PURPOSE_OPTIONS, key="form_purpose")
 
@@ -1212,16 +1174,14 @@ def page_new_call(df_user: pd.DataFrame, df_all: pd.DataFrame) -> None:
     phone = clean_phone_number(st.session_state.form_phone)
     purpose = st.session_state.form_purpose
     form_ready = bool(phone and st.session_state.form_name.strip() and purpose)
-    save_disabled = duplicate_found or not form_ready
+    save_disabled = not form_ready
 
     b1, b2 = st.columns(2)
 
     with b1:
         st.markdown('<div id="save-btn-anchor"></div>', unsafe_allow_html=True)
         if st.button("Save", use_container_width=True, disabled=save_disabled):
-            if duplicate_found:
-                st.error("This phone number already exists. Saving is blocked.")
-            elif not form_ready:
+            if not form_ready:
                 st.error("Please complete Phone Number, Full Name, and Call Purpose")
             else:
                 with st.spinner("Saving call log..."):
@@ -1232,9 +1192,7 @@ def page_new_call(df_user: pd.DataFrame, df_all: pd.DataFrame) -> None:
     with b2:
         st.markdown('<div id="save-new-btn-anchor"></div>', unsafe_allow_html=True)
         if st.button("Save & New", use_container_width=True, disabled=save_disabled):
-            if duplicate_found:
-                st.error("This phone number already exists. Saving is blocked.")
-            elif not form_ready:
+            if not form_ready:
                 st.error("Please complete Phone Number, Full Name, and Call Purpose")
             else:
                 with st.spinner("Saving and preparing a new form..."):
@@ -1280,7 +1238,7 @@ def page_new_call(df_user: pd.DataFrame, df_all: pd.DataFrame) -> None:
 def page_callback_queue(df_user: pd.DataFrame) -> None:
     st.markdown("<div style='font-size:28px;font-weight:900;color:#0f172a;'>Need Callback</div>", unsafe_allow_html=True)
     st.markdown(
-        f"<div style='margin-top:4px;font-size:14px;color:#6b7280;'>This list shows the latest customer record per phone number for {safe_text(st.session_state.caller_name)}. If the latest status is Not Pick Up, No Answer, or Busy, it stays here.</div>",
+        f"<div style='margin-top:4px;font-size:14px;color:#6b7280;'>This list shows the latest customer record per phone number for {safe_text(st.session_state.caller_name)}. If the latest status is Not Pick Up, Busy, or Wrong Number, it stays here.</div>",
         unsafe_allow_html=True,
     )
 
