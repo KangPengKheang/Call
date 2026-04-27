@@ -415,6 +415,14 @@ def safe_text(value) -> str:
     return "" if text.lower() == "nan" else text
 
 
+def normalize_id(value) -> str:
+    return safe_text(value).strip().lower()
+
+
+def get_current_staff_id() -> str:
+    return normalize_id(st.session_state.get("staff_id", ""))
+
+
 def fmt_datetime(value) -> str:
     parsed = pd.to_datetime(value, errors="coerce")
     if pd.isna(parsed):
@@ -446,14 +454,122 @@ def is_hyper_user() -> bool:
     return current_staff_id in hyper_ids
 
 
+def get_super_user_staff_ids() -> set:
+    """
+    Super user logic from STAFF_SHEET_NAME = call_users.
+
+    Sheet columns:
+        Team Lead | ID | Name | Responsibility
+
+    Rule:
+    - Hyper user remains separate and can view all.
+    - If current user is a Team Lead, they can view all callers under that Team Lead.
+    - If current user has Responsibility = bm, they can view all callers under their Team Lead.
+    - Normal user can view only their own calls.
+    """
+    current_staff_id = get_current_staff_id()
+
+    if not current_staff_id:
+        return set()
+
+    staff_df = load_staff_master_df()
+    if staff_df.empty:
+        return {current_staff_id}
+
+    staff_df = staff_df.copy()
+    staff_df["staff_id_norm"] = staff_df["staff_id"].apply(normalize_id)
+    staff_df["team_lead_id_norm"] = staff_df["team_lead_id"].apply(normalize_id)
+    staff_df["responsibility_norm"] = staff_df["responsibility"].apply(normalize_id)
+
+    current_rows = staff_df[staff_df["staff_id_norm"] == current_staff_id]
+
+    if current_rows.empty:
+        return {current_staff_id}
+
+    current_row = current_rows.iloc[0]
+    current_team_lead_id = normalize_id(current_row.get("team_lead_id_norm", ""))
+    current_responsibility = normalize_id(current_row.get("responsibility_norm", ""))
+
+    managed_team_leads = set()
+
+    # Case 1: current user appears as a Team Lead in the sheet
+    if current_staff_id in set(staff_df["team_lead_id_norm"]):
+        managed_team_leads.add(current_staff_id)
+
+    # Case 2: current user has Responsibility = bm
+    if current_responsibility == "bm":
+        if current_team_lead_id:
+            managed_team_leads.add(current_team_lead_id)
+        managed_team_leads.add(current_staff_id)
+
+    # Not super user
+    if not managed_team_leads:
+        return {current_staff_id}
+
+    team_members = staff_df[
+        staff_df["team_lead_id_norm"].isin(managed_team_leads)
+    ]["staff_id_norm"].tolist()
+
+    allowed_ids = set(team_members)
+    allowed_ids.add(current_staff_id)
+
+    return allowed_ids
+
+
+def is_super_user() -> bool:
+    """
+    Super user is different from Hyper user.
+    Hyper user already has full access.
+    """
+    if is_hyper_user():
+        return False
+
+    current_staff_id = get_current_staff_id()
+    allowed_ids = get_super_user_staff_ids()
+
+    return len(allowed_ids - {current_staff_id}) > 0
+
+
+def can_view_caller_columns() -> bool:
+    """
+    Hyper user and Super user should see Caller and Staff ID in tables.
+    Normal caller should not.
+    """
+    return is_hyper_user() or is_super_user()
+
+
+def get_scope_label() -> str:
+    if is_hyper_user():
+        return "All Calls In Sheet"
+    if is_super_user():
+        return "My Team Calls"
+    return "My Calls Only"
+
+
 def get_scope_df(df_all: pd.DataFrame) -> pd.DataFrame:
     if df_all.empty:
         return df_all.copy()
 
+    # Hyper user keeps the same behavior
     if is_hyper_user():
         return df_all.copy()
 
-    return df_all[df_all["staff_id"] == safe_text(st.session_state.staff_id)].copy()
+    # Super user can view team calls
+    if is_super_user():
+        allowed_staff_ids = get_super_user_staff_ids()
+
+        temp = df_all.copy()
+        temp["staff_id_norm"] = temp["staff_id"].apply(normalize_id)
+
+        scoped_df = temp[temp["staff_id_norm"].isin(allowed_staff_ids)].copy()
+        scoped_df = scoped_df.drop(columns=["staff_id_norm"], errors="ignore")
+
+        return scoped_df
+
+    # Normal user can view own calls only
+    return df_all[
+        df_all["staff_id"].apply(normalize_id) == get_current_staff_id()
+    ].copy()
 
 
 def get_status_palette(status: str):
@@ -693,12 +809,24 @@ def append_row_by_headers(worksheet, record: dict) -> bool:
 # USER / AUTH
 # =========================================================
 def load_staff_master_df() -> pd.DataFrame:
+    """
+    Load staff master from STAFF_SHEET_NAME = call_users.
+
+    Supported columns:
+        Team Lead
+        ID
+        Name
+        Responsibility
+
+    Also supports older fallback names:
+        staff_id, staff id, caller_name, role, branch, etc.
+    """
     try:
         values = read_sheet_values(STAFF_SHEET_NAME)
         if not values:
             return pd.DataFrame()
 
-        headers = [safe_text(h).lower() for h in values[0]]
+        headers = [safe_text(h).lower().strip() for h in values[0]]
         rows = values[1:]
         if not rows:
             return pd.DataFrame()
@@ -717,21 +845,61 @@ def load_staff_master_df() -> pd.DataFrame:
                     return col
             return None
 
+        team_lead_col = find_col(["team lead", "team_lead", "teamlead"])
         id_col = find_col(["id", "staff_id", "staff id"])
-        role_col = find_col(["role"])
-        branch_col = find_col(["appreviation", "abbreviation", "branch_name", "branch"])
-        manager_col = find_col(["team lead", "branch_manager", "manager", "team_lead"])
         name_col = find_col(["name", "full_name", "staff_name", "caller_name"])
+        responsibility_col = find_col(["responsibility", "role"])
+        branch_col = find_col(["appreviation", "abbreviation", "branch_name", "branch"])
 
         out = pd.DataFrame()
-        out["staff_id"] = df[id_col].astype(str).str.strip() if id_col else ""
-        out["role"] = df[role_col].astype(str).str.strip().str.lower() if role_col else "sales executive"
-        out["branch_name"] = df[branch_col].astype(str).str.strip() if branch_col else ""
-        out["branch_manager"] = df[manager_col].astype(str).str.strip() if manager_col else ""
-        out["caller_name"] = df[name_col].astype(str).str.strip() if name_col else out["staff_id"]
 
-        return out[["staff_id", "caller_name", "role", "branch_name", "branch_manager"]]
-    except Exception:
+        out["team_lead_id"] = (
+            df[team_lead_col].astype(str).str.strip()
+            if team_lead_col else ""
+        )
+
+        out["staff_id"] = (
+            df[id_col].astype(str).str.strip()
+            if id_col else ""
+        )
+
+        out["caller_name"] = (
+            df[name_col].astype(str).str.strip()
+            if name_col else out["staff_id"]
+        )
+
+        out["responsibility"] = (
+            df[responsibility_col].astype(str).str.strip().str.lower()
+            if responsibility_col else ""
+        )
+
+        out["role"] = out["responsibility"].replace("", "sales executive")
+
+        out["branch_name"] = (
+            df[branch_col].astype(str).str.strip()
+            if branch_col else ""
+        )
+
+        # Existing code uses branch_manager in session_state.
+        # Here we keep it as Team Lead ID.
+        out["branch_manager"] = out["team_lead_id"]
+
+        out = out[out["staff_id"] != ""].copy()
+
+        return out[
+            [
+                "team_lead_id",
+                "staff_id",
+                "caller_name",
+                "responsibility",
+                "role",
+                "branch_name",
+                "branch_manager",
+            ]
+        ]
+
+    except Exception as e:
+        st.error(f"Staff master loading error: {e}")
         return pd.DataFrame()
 
 
@@ -746,7 +914,11 @@ def load_staff_profile(staff_id: str) -> dict:
             "branch_manager": "",
         }
 
-    row = df[df["staff_id"] == safe_text(staff_id)]
+    target_staff = normalize_id(staff_id)
+    temp = df.copy()
+    temp["staff_id_norm"] = temp["staff_id"].apply(normalize_id)
+
+    row = temp[temp["staff_id_norm"] == target_staff]
     if row.empty:
         return {
             "staff_id": safe_text(staff_id),
@@ -1090,7 +1262,7 @@ def render_header(df_scope: pd.DataFrame) -> None:
     latest_calls = get_latest_calls_by_phone(df_scope)
     pending_queue = len(latest_calls[latest_calls["call_status"].isin(CALLBACK_STATUSES)]) if not latest_calls.empty else 0
 
-    scope_label = "All Calls In Sheet" if is_hyper_user() else "My Calls Only"
+    scope_label = get_scope_label()
 
     left, right = st.columns([0.68, 0.32])
 
@@ -1147,7 +1319,13 @@ def page_new_call(df_scope: pd.DataFrame, df_all: pd.DataFrame) -> None:
         )
 
     with top2:
-        scope_badge = "HYPER USER" if is_hyper_user() else safe_text(st.session_state.caller_name)
+        if is_hyper_user():
+            scope_badge = "HYPER USER"
+        elif is_super_user():
+            scope_badge = "SUPER USER / TEAM LEAD"
+        else:
+            scope_badge = safe_text(st.session_state.caller_name)
+
         st.markdown(
             f"""
             <div style='margin-top:6px;text-align:right;'>
@@ -1207,7 +1385,7 @@ def page_new_call(df_scope: pd.DataFrame, df_all: pd.DataFrame) -> None:
         unsafe_allow_html=True,
     )
 
-    # Hyper user sees all records in sheet
+    # Hyper user sees all records; Super user and normal user use df_scope
     source_df = df_all if is_hyper_user() else df_scope
 
     recent = source_df.sort_values("call_datetime", ascending=False).head(8).copy() if not source_df.empty else source_df.copy()
@@ -1215,7 +1393,7 @@ def page_new_call(df_scope: pd.DataFrame, df_all: pd.DataFrame) -> None:
     if recent.empty:
         st.info("No calls yet.")
     else:
-        if is_hyper_user():
+        if can_view_caller_columns():
             recent_view = recent[
                 [
                     "call_datetime",
@@ -1272,6 +1450,8 @@ def page_callback_queue(df_scope: pd.DataFrame) -> None:
 
     if is_hyper_user():
         queue_scope_text = "This list shows the latest customer record per phone number across the whole sheet. If the latest status is Not Pick Up, Busy, or Wrong Number, it stays here."
+    elif is_super_user():
+        queue_scope_text = "This list shows the latest customer record per phone number for your team. If the latest status is Not Pick Up, Busy, or Wrong Number, it stays here."
     else:
         queue_scope_text = f"This list shows the latest customer record per phone number for {safe_text(st.session_state.caller_name)}. If the latest status is Not Pick Up, Busy, or Wrong Number, it stays here."
 
@@ -1297,7 +1477,7 @@ def page_callback_queue(df_scope: pd.DataFrame) -> None:
                 f"📞 {safe_text(row['customer_name'])} | {safe_text(row['customer_phone'])} | Last: {fmt_datetime(row['call_datetime'])}",
                 expanded=False,
             ):
-                if is_hyper_user():
+                if can_view_caller_columns():
                     a1, a2, a3, a4, a5 = st.columns(5)
 
                     with a1:
@@ -1367,7 +1547,7 @@ def page_history(df_scope: pd.DataFrame) -> None:
 
     if st.session_state.history_search.strip():
         q = st.session_state.history_search.strip().lower()
-        if is_hyper_user():
+        if can_view_caller_columns():
             history_df = history_df[
                 history_df["customer_name"].astype(str).str.lower().str.contains(q, na=False)
                 | history_df["customer_phone"].astype(str).str.lower().str.contains(q, na=False)
@@ -1391,7 +1571,7 @@ def page_history(df_scope: pd.DataFrame) -> None:
     if history_df.empty:
         st.info("No history found.")
     else:
-        if is_hyper_user():
+        if can_view_caller_columns():
             view = history_df[
                 [
                     "call_datetime",
