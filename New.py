@@ -39,7 +39,7 @@ PURPOSE_OPTIONS = [
     "Deliver Card/QR",
     "Inactive Card/Merchant",
     "Annual Fee",
-    "Assurance",
+    "Insurance",
     "Loan",
     "Other", 
 ]
