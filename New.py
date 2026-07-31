@@ -41,7 +41,7 @@ PURPOSE_OPTIONS = [
     "Annual Fee",
     "Insurance",
     "Loan",
-    "Cross-Sell Merchant / Card"
+    "Cross-Sell Merchant / Card",
     "Other", 
 ]
 
